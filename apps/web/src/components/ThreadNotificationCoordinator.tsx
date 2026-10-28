@@ -34,7 +34,11 @@ import {
   type ThreadNotificationKind,
   type ThreadNotificationObservation,
 } from "./ThreadNotificationCoordinator.logic";
-import { toastManager } from "./ui/toast";
+import { ThreadNotificationSuggestion } from "./ThreadNotificationSuggestion";
+import { threadNotificationToastManager } from "./ui/toast";
+
+/** The open alert toast per `environmentId:threadId`; one per thread, closed once the thread is opened. */
+const openThreadToasts = new Map<string, ReturnType<typeof threadNotificationToastManager.add>>();
 
 interface NotificationState extends ThreadNotificationObservation {
   readonly raw: OrchestrationV2ThreadShell;
@@ -100,18 +104,45 @@ export function startThreadNotifications(
         hasNotificationSound(getClientSettings().notificationMode),
       );
     }
+    const focused = document.visibilityState === "visible" && document.hasFocus();
+    // A toast left while away is still waiting when you come back; the system alert covers the meantime.
     if (
       inAppNotificationsEnabled &&
-      document.visibilityState === "visible" &&
-      document.hasFocus() &&
-      (active.environmentId !== environmentId || active.threadId !== thread.id)
+      (!focused || active.environmentId !== environmentId || active.threadId !== thread.id)
     ) {
-      const toastId = toastManager.add({
+      const openThread = () => {
+        threadNotificationToastManager.close(toastId);
+        void router.navigate({
+          to: "/$environmentId/$threadId",
+          params: { environmentId, threadId: thread.id },
+        });
+      };
+      const toastKey = `${environmentId}:${thread.id}`;
+      const replaced = openThreadToasts.get(toastKey);
+      if (replaced !== undefined) threadNotificationToastManager.close(replaced);
+      const toastId = threadNotificationToastManager.add({
         type: kind === "completion" ? "success" : status === "failed" ? "error" : "warning",
         title,
         description: thread.title,
+        // Stays until dismissed or the thread is opened.
+        timeout: 0,
+        onClose: () => {
+          if (openThreadToasts.get(toastKey) === toastId) openThreadToasts.delete(toastKey);
+        },
         data: {
           hideCopyButton: true,
+          onActivate: openThread,
+          ...(kind === "completion"
+            ? {
+                footer: (
+                  <ThreadNotificationSuggestion
+                    environmentId={environmentId}
+                    thread={state.raw}
+                    onSent={() => threadNotificationToastManager.close(toastId)}
+                  />
+                ),
+              }
+            : {}),
           leadingIcon:
             kind === "completion" ? (
               <CircleCheckIcon aria-hidden className="size-4 text-success-foreground" />
@@ -123,22 +154,13 @@ export function startThreadNotifications(
               <MessageCircleQuestionIcon aria-hidden className="size-4 text-info-foreground" />
             ),
         },
-        actionProps: {
-          children: "Open thread",
-          onClick: () => {
-            toastManager.close(toastId);
-            void router.navigate({
-              to: "/$environmentId/$threadId",
-              params: { environmentId, threadId: thread.id },
-            });
-          },
-        },
+        actionProps: { children: "Open thread", onClick: openThread },
       });
-      return;
+      openThreadToasts.set(toastKey, toastId);
     }
     if (
       !hasDesktopNotifications(mode) ||
-      (document.visibilityState === "visible" && document.hasFocus()) ||
+      focused ||
       typeof Notification === "undefined" ||
       Notification.permission !== "granted"
     )
@@ -308,6 +330,20 @@ export function startThreadNotifications(
     };
   };
 
+  const closeActiveThreadToast = () => {
+    const active = (router.state.matches.at(-1)?.params ?? {}) as {
+      environmentId?: string;
+      threadId?: string;
+    };
+    if (!active.environmentId || !active.threadId) return;
+    const key = `${active.environmentId}:${active.threadId}`;
+    const toastId = openThreadToasts.get(key);
+    if (toastId === undefined) return;
+    openThreadToasts.delete(key);
+    threadNotificationToastManager.close(toastId);
+  };
+  const unsubscribeRoute = router.subscribe("onResolved", closeActiveThreadToast);
+
   const onSettings = () => {
     applyMode();
     syncEnvironments();
@@ -323,6 +359,7 @@ export function startThreadNotifications(
   onSettings();
 
   return () => {
+    unsubscribeRoute();
     unsubscribeSettings();
     unsubscribeEnvironmentIds();
     for (const entry of watched.values()) entry.unsubscribe();

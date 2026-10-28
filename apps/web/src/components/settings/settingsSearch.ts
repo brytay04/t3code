@@ -635,6 +635,24 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["generated thread titles prompt custom style naming rename regenerate"],
   },
   {
+    id: "prompt-suggestions",
+    title: "Prompt suggestions",
+    to: "/settings/threads",
+    searchTerms: ["autoprompt next prompt suggest ghost text tab autocomplete"],
+  },
+  {
+    id: "prompt-suggestion-model",
+    title: "Prompt suggestion model",
+    to: "/settings/threads",
+    searchTerms: ["autoprompt next prompt suggest generated provider"],
+  },
+  {
+    id: "prompt-suggestion-auto-send",
+    title: "Auto-send suggestions",
+    to: "/settings/threads",
+    searchTerms: ["autoprompt autopilot auto continue keep going next prompt"],
+  },
+  {
     id: "app-version",
     title: "Version",
     to: "/settings/about",

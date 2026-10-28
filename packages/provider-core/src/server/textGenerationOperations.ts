@@ -10,6 +10,7 @@ import {
   buildBranchNamePrompt,
   buildCommitMessagePrompt,
   buildPrContentPrompt,
+  buildPromptSuggestionPrompt,
   buildReviewGuidePrompt,
   buildThreadTitlePrompt,
 } from "./textGenerationPrompts.ts";
@@ -167,11 +168,24 @@ export function fromRunner(name: string, run: Runner): ProviderTextGeneration {
     });
   });
 
+  const generatePromptSuggestion: ProviderTextGeneration["generatePromptSuggestion"] = Effect.fn(
+    `${name}.generatePromptSuggestion`,
+  )(function* (input) {
+    const generated = yield* run({
+      operation: "generatePromptSuggestion",
+      cwd: input.cwd,
+      modelSelection: input.modelSelection,
+      ...buildPromptSuggestionPrompt(input),
+    });
+    return { suggestion: generated.suggestion.trim().replace(/^["']|["']$/g, "") };
+  });
+
   return {
     generateCommitMessage,
     generatePrContent,
     generateBranchName,
     generateThreadTitle,
     generateReviewGuide,
+    generatePromptSuggestion,
   } satisfies ProviderTextGeneration;
 }

@@ -76,6 +76,8 @@ export function composerCommandKeyHandler(input: {
     replacement: string,
     options?: { expandedCursorAfterReplace?: number },
   ) => boolean;
+  /** Suggested next prompt; Tab in an empty composer takes it. */
+  readonly promptSuggestion: string | null;
   readonly submitComposer: (
     event: undefined,
     dispatchMode: ComposerDispatchMode,
@@ -118,6 +120,7 @@ export function composerCommandKeyHandler(input: {
     resolveActiveComposerTrigger,
     readComposerSnapshot,
     applyPromptReplacement,
+    promptSuggestion,
     submitComposer,
   } = input;
 
@@ -230,6 +233,16 @@ export function composerCommandKeyHandler(input: {
         }),
         submissionIntent,
       );
+      return true;
+    }
+    if (
+      key === "Tab" &&
+      !event.shiftKey &&
+      !event.isComposing &&
+      promptSuggestion !== null &&
+      promptRef.current.length === 0
+    ) {
+      replacePromptFromHistory(promptSuggestion);
       return true;
     }
     if (key === "Enter" && isTaskItem) return false;

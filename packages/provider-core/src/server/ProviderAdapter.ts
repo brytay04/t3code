@@ -128,6 +128,17 @@ export const ProviderAdapterV2Event = Schema.Union([
     itemId: TurnItemId,
     chunk: Schema.String,
   }),
+  /**
+   * The provider's guess at the user's next prompt, after a completed turn.
+   * Never persisted: the session manager hands it to the prompt suggestion hub.
+   */
+  Schema.Struct({
+    type: Schema.Literal("prompt_suggestion.updated"),
+    driver: ProviderDriverKind,
+    threadId: ThreadId,
+    providerTurnId: ProviderTurnId,
+    suggestion: Schema.String,
+  }),
   Schema.Struct({
     type: Schema.Literal("runtime_request.updated"),
     driver: ProviderDriverKind,

@@ -282,6 +282,7 @@ import {
 } from "./preparingComposerImages";
 import { ComposerControlsBar } from "./ComposerControlsBar";
 import { composerCommandKeyHandler } from "./composerCommandKey";
+import { usePromptSuggestion } from "./usePromptSuggestion";
 
 function consumePasteAsTextShortcut(deadline: { current: number }): boolean {
   const armed = Date.now() <= deadline.current;
@@ -1234,6 +1235,21 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   )
     ? "steer"
     : settings.followUpBehavior;
+  const promptSuggestion = usePromptSuggestion(
+    environmentId,
+    routeKind === "server" && idlePlaceholder === undefined ? activeThreadId : null,
+  );
+  // Shown only where the default placeholder would be, so it never hides a question or approval.
+  const visiblePromptSuggestion =
+    isComposerApprovalState ||
+    activePendingProgress ||
+    (showPlanFollowUpPrompt && activeProposedPlan) ||
+    projectSelectionRequired ||
+    showProviderUnavailable ||
+    phase === "running" ||
+    phase === "disconnected"
+      ? null
+      : promptSuggestion;
   const composerSuggestionsVisible = composerMenuOpen;
   const composerSuggestionListVisible = composerSuggestionsVisible && composerMenuItems.length > 0;
   const activePendingUserInput = pendingUserInputs[0] ?? null;
@@ -2299,6 +2315,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       resolveActiveComposerTrigger,
       readComposerSnapshot,
       applyPromptReplacement,
+      promptSuggestion: visiblePromptSuggestion,
       submitComposer,
     })(key, event, isTaskItem);
 
@@ -3740,7 +3757,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                               ? "Choose a project above to start a thread"
                               : showProviderUnavailable
                                 ? "Enable a provider in Settings to send a message"
-                                : (idlePlaceholder ?? DEFAULT_COMPOSER_PLACEHOLDER)
+                                : visiblePromptSuggestion !== null
+                                  ? `${visiblePromptSuggestion}  ⇥ Tab`
+                                  : (idlePlaceholder ?? DEFAULT_COMPOSER_PLACEHOLDER)
                     }
                     disabled={
                       isConnecting ||

@@ -36,7 +36,11 @@ import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { Button } from "../components/ui/button";
 import { MorphIcon } from "~/components/MorphIcon";
 import { StandalonePage, StandalonePageHeader } from "../components/ui/standalone-page";
-import { AnchoredToastProvider, ToastProvider } from "../components/ui/toast";
+import {
+  AnchoredToastProvider,
+  ThreadNotificationToasts,
+  ToastProvider,
+} from "../components/ui/toast";
 import { isElectron } from "../env";
 import { cn } from "../lib/utils";
 import { useClientSettings } from "../hooks/useSettings";
@@ -134,6 +138,7 @@ function RootRouteView() {
     <ToastProvider>
       <AnchoredToastProvider>
         <RootRouteBranch />
+        <ThreadNotificationToasts />
       </AnchoredToastProvider>
     </ToastProvider>
   );
