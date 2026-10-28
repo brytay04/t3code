@@ -3144,6 +3144,10 @@ describe("ClaudeAdapterV2 background wake turns", () => {
         yield* Queue.unbounded<
           Extract<ProviderAdapter.ProviderAdapterV2Event, { type: "runtime_request.updated" }>
         >();
+      const promptSuggestionReceipts =
+        yield* Queue.unbounded<
+          Extract<ProviderAdapter.ProviderAdapterV2Event, { type: "prompt_suggestion.updated" }>
+        >();
       const planReceipts =
         yield* Queue.unbounded<
           Extract<ProviderAdapter.ProviderAdapterV2Event, { type: "plan.updated" }>
@@ -3284,6 +3288,9 @@ describe("ClaudeAdapterV2 background wake turns", () => {
             if (event.type === "provider_thread.updated") {
               yield* Queue.offer(providerThreadReceipts, event);
             }
+            if (event.type === "prompt_suggestion.updated") {
+              yield* Queue.offer(promptSuggestionReceipts, event);
+            }
             if (event.type === "turn_item.updated" && event.turnItem.type === "system_notice") {
               yield* Queue.offer(systemNoticeReceipts, event);
             }
@@ -3328,6 +3335,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
         runtimeRequestReceipts,
         planReceipts,
         providerThreadReceipts,
+        promptSuggestionReceipts,
         getOpenedOptions: () => openedOptions,
         terminalEvents,
         hasPendingBackgroundWork,
@@ -5708,6 +5716,43 @@ describe("ClaudeAdapterV2 background wake turns", () => {
             NodeCrypto.layer,
           ),
         ),
+      ),
+    ),
+  );
+
+  it.effect("passes Claude's next-prompt suggestion to the thread after a completed turn", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeWakeHarness;
+      const now = yield* DateTime.now;
+      yield* harness.runtime.startTurn(
+        makeClaudeTestTurnInput({
+          threadId: harness.threadId,
+          providerThread: harness.providerThread,
+          now,
+          attemptId: RunAttemptId.make("attempt-claude-suggestion"),
+          providerTurnOrdinal: 1,
+          text: "Fix the bug.",
+          attachments: [],
+        }),
+      );
+      yield* Queue.offerAll(harness.sdkMessages, [
+        makeResultFrame({ uuid: "00000000-0000-4000-8000-000000000701", result: "Fixed." }),
+        claudeSdkFrame({
+          type: "prompt_suggestion",
+          suggestion: "run the tests",
+          uuid: "00000000-0000-4000-8000-000000000702",
+          session_id: WAKE_NATIVE_SESSION,
+        }),
+      ]);
+      const terminal = yield* Queue.take(harness.terminalReceipts);
+      const suggestion = yield* Queue.take(harness.promptSuggestionReceipts);
+      assert.equal(suggestion.threadId, harness.threadId);
+      assert.equal(suggestion.suggestion, "run the tests");
+      assert.equal(suggestion.providerTurnId, terminal.providerTurnId);
+      assert.equal(harness.getOpenedOptions()?.promptSuggestions, true);
+    }).pipe(
+      Effect.provide(
+        Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
       ),
     ),
   );

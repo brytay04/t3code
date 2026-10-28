@@ -482,3 +482,31 @@ export function buildThreadTitlePrompt(input: ThreadTitlePromptInput) {
 
   return { prompt, outputSchema };
 }
+
+export interface PromptSuggestionPromptInput {
+  readonly userMessage: string;
+  readonly assistantMessage: string;
+}
+
+const PROMPT_SUGGESTION_PROMPT = [
+  "You predict the next message a user will send to their coding agent.",
+  "Read the user's last request and the agent's reply, then write the single most likely next message, in the user's voice.",
+  "Prefer a concrete next step the reply sets up: accepting an offer, running a check, or fixing what is left.",
+  "Keep it under 15 words. No quotes, no preamble.",
+  "Return an empty suggestion when the reply asks the user a question only they can answer, or when the work is finished and no step is obvious.",
+  'Respond with JSON only: {"suggestion": "..."}',
+].join("\n");
+
+export function buildPromptSuggestionPrompt(input: PromptSuggestionPromptInput) {
+  const prompt = [
+    PROMPT_SUGGESTION_PROMPT,
+    "",
+    "User's last request:",
+    limitSection(input.userMessage, 4_000),
+    "",
+    "Agent's reply:",
+    preserveMessageEnd(input.assistantMessage),
+  ].join("\n");
+  const outputSchema = Schema.Struct({ suggestion: Schema.String });
+  return { prompt, outputSchema };
+}
