@@ -35,6 +35,10 @@ export type ThreadToastData = {
   leadingIcon?: ReactNode;
   tooltipStyle?: boolean;
   onClose?: (() => void) | undefined;
+  /** Clicking anywhere on the toast outside its buttons runs this. */
+  onActivate?: (() => void) | undefined;
+  /** Rendered under the description, inside the toast body. */
+  footer?: ReactNode;
   dismissAfterVisibleMs?: number;
   hideCopyButton?: boolean;
   additionalActions?: ReadonlyArray<{
@@ -66,6 +70,9 @@ export type ThreadToastData = {
 
 const toastManager = Toast.createToastManager<ThreadToastData>();
 const anchoredToastManager = Toast.createToastManager<ThreadToastData>();
+/** Thread finished / needs attention alerts, stacked in the bottom-right corner. */
+const threadNotificationToastManager = Toast.createToastManager<ThreadToastData>();
+type ToastManager = typeof toastManager;
 type ToastId = ReturnType<typeof toastManager.add>;
 const threadToastVisibleTimeoutRemainingMs = new Map<ToastId, number>();
 
@@ -96,7 +103,7 @@ const toastCornerOrbClass = cn(
 );
 
 function handleToastDismissClick(
-  manager: typeof toastManager | typeof anchoredToastManager,
+  manager: ToastManager,
   toastId: ToastId,
   onClose: (() => void) | undefined,
 ) {
@@ -355,6 +362,7 @@ function ToastBodyContent({
           toastDescription={toastDescription}
           toastType={toastType}
         />
+        {toastData?.footer}
       </div>
       {hasTrailingControls ? (
         <div
@@ -428,9 +436,11 @@ function useActiveThreadRefFromRoute(): ScopedThreadRef | null {
 }
 
 function ThreadToastVisibleAutoDismiss({
+  manager,
   toastId,
   dismissAfterVisibleMs,
 }: {
+  manager: ToastManager;
   toastId: ToastId;
   dismissAfterVisibleMs: number | undefined;
 }) {
@@ -453,7 +463,7 @@ function ThreadToastVisibleAutoDismiss({
       if (closed) return;
       closed = true;
       threadToastVisibleTimeoutRemainingMs.delete(toastId);
-      toastManager.close(toastId);
+      manager.close(toastId);
     };
 
     const pause = () => {
@@ -500,7 +510,7 @@ function ThreadToastVisibleAutoDismiss({
       pause();
       clearTimer();
     };
-  }, [dismissAfterVisibleMs, toastId]);
+  }, [dismissAfterVisibleMs, manager, toastId]);
 
   return null;
 }
@@ -509,12 +519,21 @@ function ToastProvider({ children, position = "top-right", ...props }: ToastProv
   return (
     <Toast.Provider toastManager={toastManager} {...props}>
       {children}
-      <Toasts position={position} />
+      <Toasts manager={toastManager} position={position} />
     </Toast.Provider>
   );
 }
 
-function Toasts({ position }: { position: ToastPosition }) {
+/** Sits beside `ToastProvider`, not around the app: thread alerts only. */
+function ThreadNotificationToasts() {
+  return (
+    <Toast.Provider toastManager={threadNotificationToastManager}>
+      <Toasts manager={threadNotificationToastManager} position="bottom-right" />
+    </Toast.Provider>
+  );
+}
+
+function Toasts({ manager, position }: { manager: ToastManager; position: ToastPosition }) {
   const { toasts } = Toast.useToastManager<ThreadToastData>();
   const activeThreadRef = useActiveThreadRefFromRoute();
   const isTop = position.startsWith("top");
@@ -621,6 +640,7 @@ function Toasts({ position }: { position: ToastPosition }) {
             >
               <ThreadToastVisibleAutoDismiss
                 dismissAfterVisibleMs={toast.data?.dismissAfterVisibleMs}
+                manager={manager}
                 toastId={toast.id}
               />
               <div className={toastCornerDismissClass}>
@@ -628,16 +648,23 @@ function Toasts({ position }: { position: ToastPosition }) {
                   aria-label="Dismiss notification"
                   className={toastCornerOrbClass}
                   data-slot="toast-close"
-                  onClick={() =>
-                    handleToastDismissClick(toastManager, toast.id, toast.data?.onClose)
-                  }
+                  onClick={() => handleToastDismissClick(manager, toast.id, toast.data?.onClose)}
                   type="button"
                 >
                   <XIcon className="size-3" strokeWidth={2.25} />
                 </button>
               </div>
               <Toast.Content
+                onClick={
+                  toast.data?.onActivate
+                    ? (event) => {
+                        if ((event.target as Element).closest("button, a")) return;
+                        toast.data?.onActivate?.();
+                      }
+                    : undefined
+                }
                 className={cn(
+                  toast.data?.onActivate && "cursor-pointer",
                   // `overflow-x: clip` avoids the CSS quirk where pairing `hidden` + `y: visible`
                   // forces `y` to `auto`. Expandable detail panels can extend below without being cut off.
                   "pointer-events-auto min-h-0 overflow-y-visible pl-3.5 text-sm transition-opacity duration-250 [overflow-x:clip] data-expanded:opacity-100",
@@ -769,6 +796,8 @@ export {
   ToastProvider,
   type ToastPosition,
   toastManager,
+  ThreadNotificationToasts,
+  threadNotificationToastManager,
   AnchoredToastProvider,
   anchoredToastManager,
 };

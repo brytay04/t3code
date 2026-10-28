@@ -144,7 +144,11 @@ vi.mock(import("./ui/toast"), async (original) => {
   const actual = await original();
   return {
     ...actual,
-    toastManager: { ...actual.toastManager, add: state.add as never, close: state.close },
+    threadNotificationToastManager: {
+      ...actual.threadNotificationToastManager,
+      add: state.add as never,
+      close: state.close,
+    },
   };
 });
 
@@ -245,14 +249,12 @@ describe("thread notifications", () => {
     expect(state.notification).not.toHaveBeenCalled();
   });
 
-  it.each(["active", "blurred", "hidden", "archived", "disabled"])(
+  it.each(["active", "archived", "disabled"])(
     "does not show a completion toast for %s threads",
     async (condition) => {
       await using app = setup();
       await app.render();
       if (condition === "active") state.active.threadId = "thread-1";
-      if (condition === "blurred") state.focused = false;
-      if (condition === "hidden") state.visible = "hidden";
       if (condition === "archived") state.archivedAt = "2026-09-13T09:00:00.000Z";
       if (condition === "disabled") state.inApp = false;
       await app.complete();
@@ -284,7 +286,7 @@ describe("thread notifications", () => {
     state[event] = true;
     await app.render();
     await app.render();
-    expect(state.add).toHaveBeenCalledTimes(1);
+    expect(state.add).toHaveBeenCalledTimes(2);
     expect(state.notification).toHaveBeenCalledTimes(1);
     expect(state.notification).toHaveBeenCalledWith(title, {
       body: "Fix the login form",
@@ -359,13 +361,27 @@ describe("thread notifications", () => {
     expect(state.notification).not.toHaveBeenCalled();
   });
 
+  it.each(["blurred", "hidden"])(
+    "leaves a toast waiting for when the app is %s, even on the active thread",
+    async (condition) => {
+      await using app = setup();
+      state.active.threadId = "thread-1";
+      await app.render();
+      if (condition === "blurred") state.focused = false;
+      if (condition === "hidden") state.visible = "hidden";
+      await app.complete();
+      expect(state.add).toHaveBeenCalledTimes(1);
+      expect(state.add).toHaveBeenLastCalledWith(expect.objectContaining({ timeout: 0 }));
+    },
+  );
+
   it("keeps system alerts when the app is in the background", async () => {
     await using app = setup();
     state.mode = "notifications";
     state.focused = false;
     await app.render();
     await app.complete();
-    expect(state.add).not.toHaveBeenCalled();
+    expect(state.add).toHaveBeenCalledTimes(1);
     expect(state.notification).toHaveBeenCalledWith("Thread completed", {
       body: "Fix the login form",
       tag: expect.any(String),

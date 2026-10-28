@@ -1312,6 +1312,9 @@ export function makeClaudeQueryOptions(input: {
         ? "bypassPermissions"
         : (input.permissionMode ?? "default")),
     includePartialMessages: true,
+    // Nearly free (it reuses the turn's prompt cache); the session manager drops
+    // it when the user's prompt suggestion setting does not want it.
+    promptSuggestions: true,
     ...(compiledSelection.effort === undefined
       ? {}
       : {
@@ -7321,6 +7324,20 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             yield* Ref.update(nestedSubagentTaskIds, (current) =>
               current.has(message.task_id) ? current : new Set(current).add(message.task_id),
             );
+          }
+          if (message.type === "prompt_suggestion") {
+            // Arrives after `result`, once the turn has settled; a failed or
+            // interrupted turn leaves no settled context, so nothing is shown.
+            const settled = settledTurnByNativeThread.get(liveQuery.nativeThreadId);
+            if (settled === undefined || (yield* Ref.get(activeTurn)) !== null) return;
+            yield* emitProviderEvent({
+              type: "prompt_suggestion.updated",
+              driver: CLAUDE_PROVIDER,
+              threadId: settled.input.threadId,
+              providerTurnId: settled.providerTurnId,
+              suggestion: message.suggestion,
+            });
+            return;
           }
           if (message.type === "rate_limit_event") {
             const rateLimitInfo = message.rate_limit_info;

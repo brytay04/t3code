@@ -1116,6 +1116,7 @@ import { usePanelAnimationSettings } from "../../panelAnimations";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { readEnvironmentScope } from "../../state/session";
 import { serverEnvironment } from "../../state/server";
+import { usePromptSuggestion } from "./usePromptSuggestion";
 import type { ReviewCommentContext } from "../../reviewCommentContext";
 
 const WORKSPACE_SNAPSHOT_RETRY_COOLDOWN_MS = 10_000;
@@ -2828,6 +2829,21 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const nonPersistedComposerImageIdSet = new Set(nonPersistedComposerImageIds);
 
   const isComposerApprovalState = activePendingApproval !== null;
+  const promptSuggestion = usePromptSuggestion(
+    environmentId,
+    routeKind === "server" ? activeThreadId : null,
+  );
+  // Shown only where the default placeholder would be, so it never hides a question or approval.
+  const visiblePromptSuggestion =
+    isComposerApprovalState ||
+    activePendingProgress ||
+    (showPlanFollowUpPrompt && activeProposedPlan) ||
+    projectSelectionRequired ||
+    showProviderUnavailable ||
+    phase === "running" ||
+    phase === "disconnected"
+      ? null
+      : promptSuggestion;
   const composerSuggestionsVisible = composerMenuOpen && !isComposerApprovalState;
   const composerSuggestionListVisible = composerSuggestionsVisible && composerMenuItems.length > 0;
   const activePendingUserInput = pendingUserInputs[0] ?? null;
@@ -4261,6 +4277,16 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         }),
         submissionIntent,
       );
+      return true;
+    }
+    if (
+      key === "Tab" &&
+      !event.shiftKey &&
+      !event.isComposing &&
+      visiblePromptSuggestion !== null &&
+      promptRef.current.length === 0
+    ) {
+      replacePromptFromHistory(visiblePromptSuggestion);
       return true;
     }
     if (key === "Enter" && isTaskItem) return false;
@@ -7200,7 +7226,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                                 ? "Enable a provider in Settings to send a message"
                                 : phase === "disconnected"
                                   ? DISCONNECTED_COMPOSER_PLACEHOLDER
-                                  : "Ask anything, @tag files/folders, $use skills, or / for commands"
+                                  : visiblePromptSuggestion !== null
+                                    ? `${visiblePromptSuggestion}  ⇥ Tab`
+                                    : "Ask anything, @tag files/folders, $use skills, or / for commands"
                     }
                     disabled={
                       isConnecting ||

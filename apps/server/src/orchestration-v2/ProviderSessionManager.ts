@@ -47,6 +47,7 @@ import * as ServerSettings from "../serverSettings.ts";
 import * as McpSessionRegistry from "../mcp/McpSessionRegistry.ts";
 import * as EventSink from "./EventSink.ts";
 import * as CommandOutputHub from "./CommandOutputHub.ts";
+import * as PromptSuggestionHub from "./PromptSuggestionHub.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import * as ProviderEventIngestor from "./ProviderEventIngestor.ts";
 import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
@@ -299,6 +300,7 @@ export const layerWithOptions = (
   ProviderSessionManagerV2,
   never,
   | CommandOutputHub.CommandOutputHub
+  | PromptSuggestionHub.PromptSuggestionHub
   | EventSink.EventSinkV2
   | FileSystem.FileSystem
   | IdAllocator.IdAllocatorV2
@@ -325,6 +327,16 @@ export const layerWithOptions = (
       const projectService = yield* Effect.serviceOption(ProjectService.ProjectService);
       const eventSink = yield* EventSink.EventSinkV2;
       const commandOutput = yield* CommandOutputHub.CommandOutputHub;
+      const promptSuggestions = yield* PromptSuggestionHub.PromptSuggestionHub;
+      // Other modes either want nothing or a generated suggestion for every provider.
+      const wantsNativePromptSuggestions = Option.match(serverSettings, {
+        onNone: () => Effect.succeed(true),
+        onSome: (service) =>
+          service.getSettings.pipe(
+            Effect.map((settings) => settings.promptSuggestionMode === "native-first"),
+            Effect.orElseSucceed(() => false),
+          ),
+      });
       const idAllocator = yield* IdAllocator.IdAllocatorV2;
       const providerEventIngestor = yield* ProviderEventIngestor.ProviderEventIngestorV2;
       const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
@@ -1936,6 +1948,18 @@ export const layerWithOptions = (
             if (event.type === "command_output.delta") {
               return commandOutput.append(event);
             }
+            if (event.type === "prompt_suggestion.updated") {
+              return wantsNativePromptSuggestions.pipe(
+                Effect.flatMap((wanted) => (wanted ? promptSuggestions.set(event) : Effect.void)),
+              );
+            }
+            // A new turn makes the last suggestion stale.
+            const clearSuggestion =
+              event.type === "provider_turn.updated" &&
+              event.threadId !== undefined &&
+              event.providerTurn.status === "running"
+                ? promptSuggestions.clear(event.threadId)
+                : Effect.void;
             // A settled item carries its final output, so its live tail can go.
             const releaseLiveOutput =
               event.type === "turn_item.updated" &&
@@ -2021,6 +2045,7 @@ export const layerWithOptions = (
                   }
                   yield* publishToSubscribers(entry.eventSubscribers, { type: "event", event });
                   yield* releaseLiveOutput;
+                  yield* clearSuggestion;
                 }),
               ),
             );

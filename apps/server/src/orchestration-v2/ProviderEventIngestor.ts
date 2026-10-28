@@ -681,6 +681,9 @@ export const layer: Layer.Layer<
             case "command_output.delta":
               // Live output is routed to the command output hub before ingestion.
               return [];
+            case "prompt_suggestion.updated":
+              // Routed to the prompt suggestion hub before ingestion.
+              return [];
             case "turn.terminal":
               const dismissed = yield* dismissNativeUserInputs(input, input.event.providerTurnId);
               if (input.event.status !== "failed") {

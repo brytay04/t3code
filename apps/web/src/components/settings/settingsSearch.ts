@@ -525,6 +525,24 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["generated thread titles source control content default provider"],
   },
   {
+    id: "prompt-suggestions",
+    title: "Prompt suggestions",
+    to: "/settings/general",
+    searchTerms: ["autoprompt next prompt suggest ghost text tab autocomplete"],
+  },
+  {
+    id: "prompt-suggestion-model",
+    title: "Prompt suggestion model",
+    to: "/settings/general",
+    searchTerms: ["autoprompt next prompt suggest generated provider"],
+  },
+  {
+    id: "prompt-suggestion-auto-send",
+    title: "Auto-send suggestions",
+    to: "/settings/general",
+    searchTerms: ["autoprompt autopilot auto continue keep going next prompt"],
+  },
+  {
     id: "app-version",
     title: "Version",
     to: "/settings/general",

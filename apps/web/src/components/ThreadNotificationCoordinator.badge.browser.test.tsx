@@ -24,7 +24,13 @@ vi.mock(import("@tanstack/react-router"), async (original) => ({
 }));
 vi.mock(import("./ui/toast"), async (original) => {
   const actual = await original();
-  return { ...actual, toastManager: { ...actual.toastManager, add: state.toast as never } };
+  return {
+    ...actual,
+    threadNotificationToastManager: {
+      ...actual.threadNotificationToastManager,
+      add: state.toast as never,
+    },
+  };
 });
 vi.mock(import("../state/shell"), async (original) => {
   const actual = await original();
@@ -371,5 +377,6 @@ it("badges background failures with in-app notifications enabled", async () => {
   await app.render();
   expect(TestNotification.sent[0]?.title).toBe("Thread failed");
   expect(state.badge).toHaveBeenLastCalledWith(1);
-  expect(state.toast).not.toHaveBeenCalled();
+  // Also left in the app for when you come back.
+  expect(state.toast).toHaveBeenCalledOnce();
 });

@@ -38,6 +38,9 @@ import * as ProviderEventIngestor from "./ProviderEventIngestor.ts";
 import * as ThreadCommandExecutor from "./ThreadCommandExecutor.ts";
 import * as ProviderSessionManager from "./ProviderSessionManager.ts";
 import * as CommandOutputHub from "./CommandOutputHub.ts";
+import * as PromptSuggestionAutoSender from "./PromptSuggestionAutoSender.ts";
+import * as PromptSuggestionGenerator from "./PromptSuggestionGenerator.ts";
+import * as PromptSuggestionHub from "./PromptSuggestionHub.ts";
 import * as ProviderRuntimeRecoveryService from "./ProviderRuntimeRecoveryService.ts";
 import * as ProviderSwitchService from "./ProviderSwitchService.ts";
 import * as ProviderTurnControlService from "./ProviderTurnControlService.ts";
@@ -135,6 +138,7 @@ const layerProviderSessionManagerProvided = ProviderSessionManager.layer.pipe(
   Layer.provide(
     Layer.mergeAll(
       layerCommandOutputHubProvided,
+      PromptSuggestionHub.layer,
       layerProviderAdapterRegistryProvided,
       layerEventSinkProvided,
       IdAllocator.layer,
@@ -306,6 +310,26 @@ const layerThreadTitleRegenerationProvided = ThreadTitleRegenerationService.laye
     Layer.mergeAll(layerThreadManagementProvided, ProjectStore.layer, TextGeneration.layer),
   ),
 );
+const layerPromptSuggestionGeneratorProvided = PromptSuggestionGenerator.layer.pipe(
+  Layer.provide(
+    Layer.mergeAll(
+      layerThreadManagementProvided,
+      layerEventSinkProvided,
+      PromptSuggestionHub.layer,
+      ProjectStore.layer,
+      TextGeneration.layer,
+    ),
+  ),
+);
+const layerPromptSuggestionAutoSenderProvided = PromptSuggestionAutoSender.layer.pipe(
+  Layer.provide(
+    Layer.mergeAll(
+      layerThreadManagementProvided,
+      layerEventSinkProvided,
+      PromptSuggestionHub.layer,
+    ),
+  ),
+);
 const layerEffectExecutorProvided = EffectWorker.layerExecutor.pipe(
   Layer.provide(
     Layer.mergeAll(
@@ -348,6 +372,9 @@ const layerMcpAppRequestsProvided = McpAppRequests.layer.pipe(
 
 export const layer = Layer.mergeAll(
   layerCommandOutputHubProvided,
+  PromptSuggestionHub.layer,
+  layerPromptSuggestionGeneratorProvided,
+  layerPromptSuggestionAutoSenderProvided,
   layerOrchestratorProvided,
   layerMcpAppRequestsProvided,
   layerThreadManagementProvided,

@@ -1090,6 +1090,14 @@ export const StorageCleanupSettings = Schema.Struct({
 });
 export type StorageCleanupSettings = typeof StorageCleanupSettings.Type;
 
+/**
+ * Where next-prompt suggestions come from. `native-first` uses a provider's own
+ * suggestion when it has one (Claude) and generates one otherwise; `generated`
+ * always asks the prompt suggestion model.
+ */
+export const PromptSuggestionMode = Schema.Literals(["off", "native-first", "generated"]);
+export type PromptSuggestionMode = typeof PromptSuggestionMode.Type;
+
 export const ServerSettings = Schema.Struct({
   // Null means no client has migrated this preference yet; an empty value is
   // authoritative so another device cannot resurrect cleared preferences.
@@ -1242,6 +1250,16 @@ export const ServerSettings = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
   reviewGuideInstructions: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+
+  promptSuggestionMode: PromptSuggestionMode.pipe(
+    Schema.withDecodingDefault(Effect.succeed("native-first")),
+  ),
+  /** Writes generated suggestions; null uses `textGenerationModelSelection`. */
+  promptSuggestionModelSelection: Schema.NullOr(ModelSelection).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
+  /** Sends each suggestion as the next prompt on its own, a few times in a row at most. */
+  promptSuggestionAutoSend: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
 
   pullRequestMergeMethod: Schema.NullOr(PullRequestMergeMethod).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
@@ -1480,6 +1498,9 @@ export const ServerSettingsPatch = Schema.Struct({
   sidebarAutoSettleOnMerge: Schema.optionalKey(Schema.Boolean),
   autoResumeLimitedThreads: Schema.optionalKey(Schema.Boolean),
   snoozeLimitedThreads: Schema.optionalKey(Schema.Boolean),
+  promptSuggestionMode: Schema.optionalKey(PromptSuggestionMode),
+  promptSuggestionModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
+  promptSuggestionAutoSend: Schema.optionalKey(Schema.Boolean),
   backgroundActivity: Schema.optionalKey(
     Schema.Struct({
       schemaVersion: Schema.optionalKey(Schema.Literal(1)),

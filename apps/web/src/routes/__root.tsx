@@ -51,6 +51,7 @@ import { StandalonePage, StandalonePageHeader } from "../components/ui/standalon
 import {
   AnchoredToastProvider,
   stackedThreadToast,
+  ThreadNotificationToasts,
   ToastProvider,
   toastManager,
 } from "../components/ui/toast";
@@ -240,6 +241,7 @@ function RootRouteView() {
           <SshPasswordPromptDialog />
           <SnapShotCoordinator />
           <ThreadNotificationCoordinator />
+          <ThreadNotificationToasts />
           <ReopenClosedViewShortcut />
           <ConfirmDialogHost />
           <CustomSnoozeDialogHost />

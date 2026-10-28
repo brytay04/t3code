@@ -3087,6 +3087,7 @@ export const ORCHESTRATION_V2_WS_METHODS = {
   subscribeShell: "orchestration.subscribeShell",
   subscribeThread: "orchestration.subscribeThread",
   subscribeCommandOutput: "orchestration.subscribeCommandOutput",
+  subscribePromptSuggestion: "orchestration.subscribePromptSuggestion",
 } as const;
 
 export const OrchestrationV2SubscribeCommandOutputInput = Schema.Struct({
@@ -3123,6 +3124,24 @@ export class OrchestrationV2CommandOutputError extends Schema.TaggedError<Orches
     cause: Schema.optional(Schema.Defect()),
   },
 ) {}
+
+export const OrchestrationV2SubscribePromptSuggestionInput = Schema.Struct({
+  threadId: ThreadId,
+});
+export type OrchestrationV2SubscribePromptSuggestionInput =
+  typeof OrchestrationV2SubscribePromptSuggestionInput.Type;
+
+/**
+ * The provider's guess at the user's next prompt, sent after a turn completes.
+ * Kept in memory only: it is a hint for the composer, not conversation history.
+ * `providerTurnId` names the turn it follows, so clients can drop a suggestion
+ * once a newer turn starts. `suggestion: null` clears it.
+ */
+export const OrchestrationV2PromptSuggestion = Schema.Struct({
+  providerTurnId: Schema.NullOr(ProviderTurnId),
+  suggestion: Schema.NullOr(Schema.String),
+});
+export type OrchestrationV2PromptSuggestion = typeof OrchestrationV2PromptSuggestion.Type;
 
 export const OrchestrationV2ArchivedShellSnapshot = Schema.Struct({
   schemaVersion: PositiveInt,
@@ -3604,6 +3623,10 @@ export const OrchestrationV2RpcSchemas = {
   subscribeCommandOutput: {
     input: OrchestrationV2SubscribeCommandOutputInput,
     output: OrchestrationV2CommandOutputFrame,
+  },
+  subscribePromptSuggestion: {
+    input: OrchestrationV2SubscribePromptSuggestionInput,
+    output: OrchestrationV2PromptSuggestion,
   },
 } as const;
 

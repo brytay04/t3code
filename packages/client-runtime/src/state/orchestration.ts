@@ -81,6 +81,12 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
             Stream.filter((view) => view !== EMPTY_COMMAND_OUTPUT),
           ),
       }),
+      // The composer's next-prompt suggestion for the open thread.
+      promptSuggestion: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
+        label: "environment-data:orchestration-v2:prompt-suggestion",
+        tag: ORCHESTRATION_V2_WS_METHODS.subscribePromptSuggestion,
+        idleTtlMs: 0,
+      }),
     },
     turnDiff: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:orchestration:turn-diff",

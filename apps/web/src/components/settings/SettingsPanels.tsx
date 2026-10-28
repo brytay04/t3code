@@ -47,6 +47,7 @@ import {
   type ResponseStreamingMode,
   MIN_TERMINAL_FONT_SIZE,
   type QuitConfirmationMode,
+  PromptSuggestionMode,
   SidebarProjectSortOrder,
 } from "@t3tools/contracts/settings";
 import { resolveServerBackgroundActivitySettings } from "@t3tools/shared/backgroundActivitySettings";
@@ -196,6 +197,12 @@ const SIDEBAR_PROJECT_SORT_ORDER_LABELS: Record<SidebarProjectSortOrder, string>
   manual: "Manual",
 };
 const isSidebarProjectSortOrder = Schema.is(SidebarProjectSortOrder);
+const PROMPT_SUGGESTION_MODE_LABELS: Record<PromptSuggestionMode, string> = {
+  off: "Off",
+  "native-first": "Native when available",
+  generated: "Always generate",
+};
+const isPromptSuggestionMode = Schema.is(PromptSuggestionMode);
 
 const TIMESTAMP_FORMAT_LABELS = {
   locale: "System default",
@@ -2142,6 +2149,23 @@ export function GeneralSettingsPanel() {
     settings.textGenerationModelSelection ?? null,
     DEFAULT_UNIFIED_SETTINGS.textGenerationModelSelection ?? null,
   );
+  const promptSuggestionSelection = resolveAppModelSelectionState(
+    {
+      ...settings,
+      textGenerationModelSelection:
+        settings.promptSuggestionModelSelection ?? settings.textGenerationModelSelection,
+    },
+    textGenerationProviders,
+  );
+  const promptSuggestionInstanceEntry = textGenerationModelInstanceEntries.find(
+    (entry) => entry.instanceId === promptSuggestionSelection.instanceId,
+  );
+  const promptSuggestionModelOptionsByInstance = getCustomModelOptionsByInstance(
+    settings,
+    textGenerationProviders,
+    promptSuggestionSelection.instanceId,
+    promptSuggestionSelection.model,
+  );
   const textGenerationModelDisabledReason = useScopedModelDisabledReason(
     settings,
     textGenerationModelInstanceEntries,
@@ -3283,6 +3307,141 @@ export function GeneralSettingsPanel() {
             )
           }
         />
+        <SettingsRow
+          serverScoped
+          settingKeys={["promptSuggestionMode"]}
+          {...searchableSetting("prompt-suggestions")}
+          description="Suggest your next prompt after each reply. Press Tab in an empty composer to use it. Native uses a provider's own suggestion when it has one (Claude) and generates one otherwise."
+          resetAction={
+            settings.promptSuggestionMode !== DEFAULT_UNIFIED_SETTINGS.promptSuggestionMode ? (
+              <SettingResetButton
+                label="prompt suggestions"
+                onClick={() =>
+                  updateSettings({
+                    promptSuggestionMode: DEFAULT_UNIFIED_SETTINGS.promptSuggestionMode,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Select
+              value={settings.promptSuggestionMode}
+              onValueChange={(value) => {
+                if (isPromptSuggestionMode(value)) updateSettings({ promptSuggestionMode: value });
+              }}
+            >
+              <SelectTrigger size="sm" className="w-full sm:w-52" aria-label="Prompt suggestions">
+                <SelectValue>
+                  {PROMPT_SUGGESTION_MODE_LABELS[settings.promptSuggestionMode]}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                {PromptSuggestionMode.literals.map((mode) => (
+                  <SelectItem hideIndicator key={mode} value={mode}>
+                    {PROMPT_SUGGESTION_MODE_LABELS[mode]}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
+          }
+        />
+        {settings.promptSuggestionMode !== "off" ? (
+          <SettingsRow
+            serverScoped
+            settingKeys={["promptSuggestionModelSelection"]}
+            {...searchableSetting("prompt-suggestion-model")}
+            description="Writes suggestions for providers without their own. A small, fast model works well. Reset to use the text generation model."
+            resetAction={
+              settings.promptSuggestionModelSelection !== null ? (
+                <SettingResetButton
+                  label="prompt suggestion model"
+                  onClick={() => updateSettings({ promptSuggestionModelSelection: null })}
+                />
+              ) : null
+            }
+            control={
+              !hasServerTargets ? (
+                <span className="text-sm text-muted-foreground">
+                  Connect an environment to choose its prompt suggestion model.
+                </span>
+              ) : !hasTextGenerationProvider ? (
+                <span className="text-sm text-muted-foreground">
+                  No text generation providers available.
+                </span>
+              ) : (
+                <div className="flex flex-wrap items-center justify-end gap-1.5">
+                  <ProviderModelPicker
+                    environmentId={environmentId}
+                    activeInstanceId={promptSuggestionSelection.instanceId}
+                    model={promptSuggestionSelection.model}
+                    lockedProvider={null}
+                    instanceEntries={textGenerationModelInstanceEntries}
+                    modelOptionsByInstance={promptSuggestionModelOptionsByInstance}
+                    triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
+                    triggerAriaLabel="Prompt suggestion model"
+                    getModelDisabledReason={textGenerationModelDisabledReason}
+                    onInstanceModelChange={(instanceId, model) => {
+                      const reason = textGenerationModelDisabledReason(instanceId, model);
+                      if (reason) {
+                        toastManager.add({
+                          type: "error",
+                          title: "Prompt suggestion model not saved",
+                          description: reason,
+                        });
+                        return;
+                      }
+                      updateSettings({
+                        promptSuggestionModelSelection: createModelSelection(instanceId, model),
+                      });
+                    }}
+                  />
+                  {promptSuggestionInstanceEntry ? (
+                    <TraitsPicker
+                      provider={promptSuggestionInstanceEntry.driverKind}
+                      models={promptSuggestionInstanceEntry.models}
+                      model={promptSuggestionSelection.model}
+                      prompt=""
+                      onPromptChange={() => {}}
+                      modelOptions={promptSuggestionSelection.options ?? []}
+                      allowPromptInjectedEffort={false}
+                      planModeEnabled={
+                        settings.planModeEnabled ||
+                        selectsPlanAgent(promptSuggestionSelection.options)
+                      }
+                      triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
+                      onModelOptionsChange={(nextOptions) =>
+                        updateSettings({
+                          promptSuggestionModelSelection: createModelSelection(
+                            promptSuggestionSelection.instanceId,
+                            promptSuggestionSelection.model,
+                            nextOptions,
+                          ),
+                        })
+                      }
+                    />
+                  ) : null}
+                </div>
+              )
+            }
+          />
+        ) : null}
+        {settings.promptSuggestionMode !== "off" ? (
+          <SettingsRow
+            serverScoped
+            settingKeys={["promptSuggestionAutoSend"]}
+            {...searchableSetting("prompt-suggestion-auto-send")}
+            description="Send the suggestion as the next prompt 10 seconds after a reply, unless you send something first. Stops after 3 in a row until you write one yourself."
+            control={
+              <ScopedSwitch
+                settingKeys={["promptSuggestionAutoSend"]}
+                checked={settings.promptSuggestionAutoSend}
+                onCheckedChange={(checked) => updateSettings({ promptSuggestionAutoSend: checked })}
+                aria-label="Auto-send suggestions"
+              />
+            }
+          />
+        ) : null}
       </SettingsSection>
 
       <SettingsSection id="about" title="About">

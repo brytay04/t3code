@@ -148,6 +148,8 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   /** Server answers orchestration.subscribeCommandOutput. Absent on older servers,
       which never send command output, so clients must not subscribe. */
   commandOutputStreaming: Schema.optionalKey(Schema.Boolean),
+  /** Server answers orchestration.subscribePromptSuggestion. Absent on servers without it. */
+  promptSuggestions: Schema.optionalKey(Schema.Boolean),
   /** Server hosts preview tabs in its own headless Chromium (`runtime:
       "server"`) and streams them over `/api/preview-stream`. Clients
       without a local browser runtime open server tabs here. */
