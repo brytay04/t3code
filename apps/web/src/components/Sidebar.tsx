@@ -65,6 +65,7 @@ import {
   CheckIcon,
   ChevronDownIcon,
   FolderIcon,
+  LayersIcon,
   ListFilterIcon,
   PlusIcon,
   SettingsIcon,
@@ -115,6 +116,7 @@ import {
   getSidebarProjectSettingsKey,
   type SidebarProjectSnapshot,
 } from "../sidebarProjectGrouping";
+import { isSidebarViewScopeKey, resolveSidebarViewProjectKeys, sidebarViewScopeItems } from "../sidebarViews";
 import { resolveProjectExpanded, useUiStateStore } from "../uiStateStore";
 import {
   getThreadKeysToDeselectAfterDelete,
@@ -932,6 +934,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const confirmThreadArchive = useClientSettings((s) => s.confirmThreadArchive);
   const timestampFormat = useClientSettings((s) => s.timestampFormat);
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
+  const sidebarViews = useClientSettings((s) => s.sidebarViews);
   const {
     settleThread,
     unsettleThread,
@@ -1098,25 +1101,24 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const archivedProjectKeys = new Set(
     projectGroups.filter((project) => project.archived).map((project) => project.projectKey),
   );
-  const chosenProjectScopeKeys = resolveSidebarProjectScopeKeys({
-    groups: projectGroups,
-    keys: persistedProjectScopeKeys,
-    settings: projectGroupingSettings,
-    canClearMissingScope: allProjectSnapshotsReady && allProjectConfigsReady,
-  }).filter((key) => !archivedProjectKeys.has(key));
-  const chosenProjectGroups = scopeGroups.filter((project) =>
-    chosenProjectScopeKeys.includes(project.projectKey),
-  );
-  const chosenScopeProjectKeys =
-    chosenProjectGroups.length === 0
-      ? null
-      : new Set(
-          chosenProjectGroups.flatMap((project) =>
-            project.memberProjectRefs.map(
-              (projectRef) => `${projectRef.environmentId}:${projectRef.projectId}`,
-            ),
-          ),
-        );
+  const selectedViews = persistedProjectScopeKeys.filter(isSidebarViewScopeKey).flatMap((key) => {
+    const projects = resolveSidebarViewProjectKeys({ key, views: sidebarViews, groups: scopeGroups });
+    return projects === null ? [] : [{ key, projects }];
+  });
+  const chosenProjectScopeKeys = [
+    ...resolveSidebarProjectScopeKeys({
+      groups: projectGroups,
+      keys: persistedProjectScopeKeys.filter((key) => !isSidebarViewScopeKey(key)),
+      settings: projectGroupingSettings,
+      canClearMissingScope: allProjectSnapshotsReady && allProjectConfigsReady,
+    }).filter((key) => !archivedProjectKeys.has(key)),
+    ...selectedViews.map((view) => view.key),
+  ];
+  const chosenProjectGroups = scopeGroups.filter((project) => chosenProjectScopeKeys.includes(project.projectKey));
+  const chosenScopeProjectKeys = chosenProjectGroups.length === 0 && selectedViews.length === 0 ? null : new Set([
+    ...chosenProjectGroups.flatMap((project) => project.memberProjectRefs.map((ref) => `${ref.environmentId}:${ref.projectId}`)),
+    ...selectedViews.flatMap((view) => [...view.projects]),
+  ]);
   const threads = useQuietThreadShells();
   const routeRowThreadKey =
     routeThreadRef === null
@@ -1180,7 +1182,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   };
   // Pinning from a row keeps rows in place while the menu is open.
   const projectScopeItems = useOrderWhileOpen(
-    lookupProjectScopeItems,
+    [...lookupProjectScopeItems.slice(0, 1), ...sidebarViewScopeItems(sidebarViews), ...lookupProjectScopeItems.slice(1)],
     (item) => item.value,
     projectScopeMenuState.open,
   );
@@ -3117,7 +3119,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                     <ComboboxList aria-multiselectable>
                       {(item: (typeof projectScopeItems)[number]) => {
                         const project = projectGroupByScopeKey.get(item.value) ?? null;
-                        const isSelected = project
+                        const isSelected = item.value !== "all"
                           ? projectScopeKeys.includes(item.value)
                           : projectScopeKeys.length === 0;
                         return (
@@ -3135,6 +3137,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             <ProjectScopeRowIcon isSelected={isSelected}>
                               {project ? (
                                 <ProjectFavicon project={project} className="size-4 shrink-0" />
+                              ) : isSidebarViewScopeKey(item.value) ? (
+                                <LayersIcon className="size-4 shrink-0" />
                               ) : (
                                 <FolderIcon className="size-4 shrink-0" />
                               )}

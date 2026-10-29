@@ -466,6 +466,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["beta boring sidebar folder rows multiline branch pull request details"],
   },
   {
+    id: "sidebar-views",
+    title: "Sidebar views",
+    to: "/settings/appearance",
+    searchTerms: ["work mode groups folders filter projects workspace switch show hide"],
+  },
+  {
     id: "guest-links",
     title: "Guest links",
     to: "/settings/labs",
