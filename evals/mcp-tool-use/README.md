@@ -239,3 +239,12 @@ Passes per case, main's text → the request_secret guidance change stacked on t
 2. From `evals/`, run `pnpm mcp-tool-use:trim-capture <claude|codex> <capture.json> mcp-tool-use/templates/<claude|codex>.json.gz`. It keeps only what `run.ts` reads, and removes user instructions, the user's own skills and agents, account ids, and home paths.
 3. Read the output for user data before you commit it: `zcat <file> | less`.
 4. Run the full eval on the old and new templates, and compare.
+
+## Composer workflows
+
+`cases/chat-workflows.ndjson` sets `setup.chatWorkflow` so the runner imports the
+current Team/Council brief from `packages/shared`, rather than copying its text.
+Run `pnpm mcp-tool-use --cases mcp-tool-use/cases/chat-workflows.ndjson --samples 1
+--out runs/chat-workflows` to check app-owned, read-only delegation and avoidance
+of top-level thread creation. This simulates routing; it does not execute children
+or prove the lead completes every review gate.

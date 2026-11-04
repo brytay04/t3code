@@ -34,6 +34,7 @@ import { Tool } from "effect/ai";
 import * as McpSchema from "effect/ai/McpSchema";
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http";
 
+import { applyChatWorkflow } from "@t3tools/shared/chatWorkflows";
 import { taskPrompt } from "../../apps/server/src/mcp/delegatedTaskModes.ts";
 import * as McpInvocationContext from "../../apps/server/src/mcp/McpInvocationContext.ts";
 import { advertisedJsonSchema } from "../../apps/server/src/mcp/advertisedJsonSchema.ts";
@@ -278,6 +279,7 @@ export const McpToolUseCase = Schema.Struct({
     /** delegate_task `role` for a delegated child. T3 builds the child's first message from it. */
     delegateRole: Schema.optional(OrchestratorMcpTaskRole),
     context: Schema.optional(Schema.String),
+    chatWorkflow: Schema.optional(Schema.Literals(["focus", "team", "council"])),
     priorTurns: Schema.optional(
       Schema.Array(
         Schema.Struct({
@@ -1002,8 +1004,11 @@ export const buildMessages = (sample: Sample) => {
     testCase.promptContext === undefined
       ? testCase.prompt
       : projectComposerContextForProvider({ text: testCase.prompt, ...testCase.promptContext });
+  const workflowText = testCase.setup.chatWorkflow
+    ? applyChatWorkflow(userText, testCase.setup.chatWorkflow)
+    : userText;
   const prompt =
-    sideChatContext === undefined ? userText : withInlineContext(sideChatContext, userText);
+    sideChatContext === undefined ? workflowText : withInlineContext(sideChatContext, workflowText);
   const childPrompt = () => taskPrompt({ task: prompt, role: delegateRole });
   if (testCase.prompt !== "")
     push("user", text(role === "delegated-child" ? childPrompt() : prompt));

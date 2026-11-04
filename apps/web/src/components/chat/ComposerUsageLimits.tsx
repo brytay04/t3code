@@ -1,6 +1,6 @@
 import type { EnvironmentId, UsageLimitsReport } from "@t3tools/contracts";
 import type { TimestampFormat } from "@t3tools/contracts/settings";
-import { limitsNotice } from "@t3tools/shared/usageLimits";
+import { usageSnapshotNotice } from "@t3tools/shared/usageLimits";
 import { GaugeIcon } from "lucide-react";
 
 import { ensureLocalApi } from "../../localApi";
@@ -49,11 +49,14 @@ export function usageLimitsBannerItem(
   report: UsageLimitsReport,
   environmentId: EnvironmentId,
   onDismiss: () => void,
+  controls: { refresh: () => void; refreshing: boolean; canRefresh: boolean },
 ): ComposerBannerStackItem {
   const [first] = report.accounts;
   const single = report.accounts.length === 1 && first ? first : null;
   const summary = single ? (
     <AccountSummary account={single} />
+  ) : report.accounts.length === 0 ? (
+    "Unavailable"
   ) : (
     `${report.accounts.length} accounts`
   );
@@ -62,6 +65,16 @@ export function usageLimitsBannerItem(
     variant: "info",
     icon: <GaugeIcon />,
     title: "Usage limits",
+    actions: (
+      <Button
+        size="xs"
+        variant="ghost"
+        disabled={!controls.canRefresh || controls.refreshing}
+        onClick={controls.refresh}
+      >
+        {controls.refreshing ? "Checking…" : "Refresh"}
+      </Button>
+    ),
     description: summary,
     dismissLabel: "Dismiss usage limits",
     onDismiss,
@@ -117,7 +130,7 @@ function UsageLimitsBannerBody({
           const resetCreditInput =
             account.resetCreditInput ??
             (account.instanceId ? { instanceId: account.instanceId } : undefined);
-          const notice = limitsNotice(account.limits);
+          const notice = usageSnapshotNotice(account.limits, now);
           const externalUsage = account.limits.externalUsage;
           return (
             <div key={account.id} className="flex min-w-0 flex-col gap-1">
@@ -137,6 +150,9 @@ function UsageLimitsBannerBody({
                   now={now}
                 />
               )}
+              <span className="text-xs text-muted-foreground">
+                Last checked {new Date(account.limits.checkedAt).toLocaleString()}
+              </span>
               {externalUsage ? (
                 <Button
                   size="sm"

@@ -624,6 +624,19 @@ export function limitsNotice(limits: ServerProviderUsageLimits): string | null {
   return limits.windows.length === 0 ? "No limits reported." : null;
 }
 
+export function usageSnapshotNotice(limits: ServerProviderUsageLimits, now: number): string | null {
+  const notice = limitsNotice(limits);
+  if (notice) return notice;
+  const checkedAt = Date.parse(limits.checkedAt);
+  if (!Number.isFinite(checkedAt) || checkedAt > now || now - checkedAt > 5 * MINUTE) {
+    return "Usage is stale. Refresh to check available capacity.";
+  }
+  if (limits.windows.some((window) => window.resetsAt && Date.parse(window.resetsAt) <= now)) {
+    return "A usage window has reset. Refresh to check available capacity.";
+  }
+  return null;
+}
+
 export function remainingPercent(window: ServerProviderUsageWindow): number {
   return Math.round(100 - Math.max(0, Math.min(100, window.usedPercent)));
 }
@@ -755,9 +768,14 @@ export function collectProviderUsageLimits(
   providers: readonly ServerProvider[],
   sources: UsageLimitSourceSnapshots,
   now: number,
+  includeUnavailable = false,
 ): UsageLimitsReport | null {
   const selected = providers.find((provider) => provider.instanceId === instanceId);
-  if (!selected || !hasProviderUsageLimits(selected.driver, providers, sources)) return null;
+  if (
+    !selected ||
+    (!includeUnavailable && !hasProviderUsageLimits(selected.driver, providers, sources))
+  )
+    return null;
   const resolveKey = accountKeyResolver([
     ...providers.filter((provider) => provider.enabled).map(nativeReport),
     ...sources.flatMap((source) => source.accounts),
@@ -767,9 +785,18 @@ export function collectProviderUsageLimits(
     string,
     { usage: NativeSnapshot; credits: NativeSnapshot | null }
   >();
-  for (const provider of providersWithLimits(providers)) {
-    if (provider.driver !== selected.driver || !provider.usageLimits) continue;
-    const snapshot = { provider, limits: provider.usageLimits };
+  for (const provider of includeUnavailable
+    ? providers.filter((entry) => entry.enabled)
+    : providersWithLimits(providers)) {
+    if (provider.driver !== selected.driver) continue;
+    const snapshot: NativeSnapshot = {
+      provider,
+      limits: provider.usageLimits ?? {
+        checkedAt: provider.checkedAt,
+        windows: [],
+        unavailable: { reason: "probeFailed", message: "Usage unavailable for this account." },
+      },
+    };
     const key = resolveKey(nativeReport(provider)) ?? `instance:${provider.instanceId}`;
     const previous = nativeByAccount.get(key);
     const previousUsable = previous ? limitsNotice(previous.usage.limits) === null : false;

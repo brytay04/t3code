@@ -3,6 +3,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./chatWorkflows": {
+      "types": "./src/chatWorkflows.ts",
+      "import": "./src/chatWorkflows.ts"
+    },
     "./modelRouting": {
       "types": "./src/modelRouting.ts",
       "import": "./src/modelRouting.ts"

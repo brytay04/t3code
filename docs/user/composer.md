@@ -12,6 +12,37 @@ becomes an attachment when inserting it would exceed the message limit. On a
 hardware keyboard, use `Cmd+Shift+V` on Apple devices or `Ctrl+Shift+V` elsewhere
 to keep a large paste editable in the composer instead.
 
+## Workflows and account usage
+
+On web and desktop, the composer workflow menu adds an editable **Team** or
+**Council** brief to your draft. Add your task and send it to begin. Team asks the
+lead to gather independent analysis and test design, implement the result, then
+request an independent review. Council compares two independent proposals and
+returns a read-only recommendation. Delegates inherit the lead's model unless
+you name other models in the brief. These are agent-executed instructions using
+T3's existing delegation tools, not a separate deterministic workflow engine.
+The agent must report unavailable tools or models instead of substituting.
+Choosing Focus removes an unchanged generated brief; edited instructions remain
+yours to revise in the composer.
+
+Use **Check account usage** in the composer, or `/usage-limits`, to refresh the
+selected provider's accounts on that environment. Each account shows when it was
+checked. Unreadable, stale, and reset windows show a notice instead of a capacity
+estimate. This is account quota, not the token count of the current chat.
+
+## Clean up a folder
+
+On web and desktop, choose **Clean up folder** from a folder's menu, or its broom
+button. The overview lists loaded, unarchived conversations by recent user
+activity, with their latest message and a suggested next action based on status.
+Refresh individual titles with the configured title model; Undo restores the
+previous title while the overview is open. Running conversations are left alone.
+
+**Draft overview** opens a new draft with links to the displayed conversations.
+Review and send it to ask the selected model to condense completed work, blockers,
+and next actions into a linked overview. It does not resume or remove source
+conversations. Older unloaded conversations are outside the overview's scope.
+
 ## Formatting
 
 The composer writes Markdown and shows it styled as you type. Markers such as

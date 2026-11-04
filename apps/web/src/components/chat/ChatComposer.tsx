@@ -1,3 +1,5 @@
+import { applyChatWorkflow, selectedChatWorkflow } from "@t3tools/shared/chatWorkflows";
+import { ComposerWorkTools } from "./ComposerWorkTools";
 import { useComposerTypingGuard } from "./useComposerTypingGuard";
 import { insertAttachmentReferencesForDraft } from "./composerAttachmentReferences";
 import { DESKTOP_PASTE_AS_TEXT_EVENT } from "../../lib/desktopPasteAsText";
@@ -3499,6 +3501,25 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                 )}
               >
                 {composerAttachButton ? <div className="me-2">{composerAttachButton}</div> : null}
+                <ComposerWorkTools
+                  workflow={selectedChatWorkflow(prompt)}
+                  disabled={
+                    !canOperateThread ||
+                    phase === "running" ||
+                    isSendBusy ||
+                    pendingUserInputs.length > 0 ||
+                    activePendingApproval !== null ||
+                    projectSelectionRequired
+                  }
+                  onUsage={props.onUsageLimitsCommand}
+                  onWorkflow={(workflow) => {
+                    applyPromptReplacement(
+                      0,
+                      promptRef.current.length,
+                      applyChatWorkflow(promptRef.current, workflow),
+                    );
+                  }}
+                />
                 <div
                   data-chat-composer-actions="right"
                   data-chat-composer-transition-actions="true"

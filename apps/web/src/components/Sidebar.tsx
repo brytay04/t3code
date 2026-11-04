@@ -1,3 +1,4 @@
+import { FolderCleanupDialog } from "./sidebar/FolderCleanupDialog";
 import { liveShellEnvironmentIdsAtom } from "../state/shell";
 import { attachSidebarTree } from "../lib/sidebarTree";
 import { type EnvironmentId, type ScopedProjectRef } from "@t3tools/contracts";
@@ -1064,6 +1065,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       ? scopedThreadKey(renamingThreadRef)
       : null;
   const [renamingTitle, setRenamingTitle] = useState("");
+  const [cleanupGroup, setCleanupGroup] = useState<SidebarProjectSnapshot | null>(null);
   const settlingThreadKeysRef = useRef(new Set<string>());
   const threadListRef = useRef<HTMLUListElement | null>(null);
   const sidebarContentRef = useRef<HTMLDivElement | null>(null);
@@ -1295,6 +1297,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           api.contextMenu.show(
             [
               { id: "new-thread", label: "New thread" },
+              { id: "clean-up", label: "Clean up folder" },
               { id: "copy-path", label: "Copy path" },
               ...(canPinProject(group)
                 ? [
@@ -1310,6 +1313,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         );
         if (clicked._tag === "Failure") return;
         switch (clicked.value) {
+          case "clean-up":
+            setCleanupGroup(group);
+            return;
           case "new-thread":
             startThreadInProjectFolder(group);
             return;
@@ -3005,6 +3011,14 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const newThreadInProjectShortcutLabel = shortcutLabelForCommand(keybindings, "chat.newLocal");
   return (
     <>
+      {cleanupGroup ? (
+        <FolderCleanupDialog
+          key={cleanupGroup.projectKey}
+          group={cleanupGroup}
+          onClose={() => setCleanupGroup(null)}
+          onOpenThread={navigateToThread}
+        />
+      ) : null}
       <ThreadContextDragGhost />
       <SidebarChromeHeader isElectron={isElectron} />
       <SidebarContent
@@ -3478,6 +3492,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                 hiddenThreads={folder.hiddenThreads}
                                 onToggle={toggleProjectFolder}
                                 onNewThread={startThreadInProjectFolder}
+                                onCleanUp={setCleanupGroup}
                                 onContextMenu={handleProjectFolderContextMenu}
                               />,
                             );

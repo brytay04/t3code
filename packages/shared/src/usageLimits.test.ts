@@ -23,6 +23,7 @@ import {
   paceRemainingPercent,
   usesChatGptSharing,
   resolveNewThreadModelSelection,
+  usageSnapshotNotice,
 } from "./usageLimits.ts";
 
 const now = Date.parse("2026-09-03T12:00:00.000Z");
@@ -35,6 +36,26 @@ const window = {
   windowDurationMins: 300,
   resetsAt: "2026-09-03T14:00:00.000Z",
 } as const;
+
+it("distinguishes fresh zero usage from stale, reset, and unavailable snapshots", () => {
+  const limits = {
+    checkedAt: "2026-09-03T12:00:00.000Z",
+    windows: [{ ...window, usedPercent: 0 }],
+  };
+  expect(usageSnapshotNotice(limits, now)).toBeNull();
+  expect(usageSnapshotNotice(limits, now + 300_001)).toContain("stale");
+  expect(usageSnapshotNotice(limits, now - 1)).toContain("stale");
+  expect(
+    usageSnapshotNotice({ ...limits, windows: [{ ...window, resetsAt: limits.checkedAt }] }, now),
+  ).toContain("reset");
+  expect(usageSnapshotNotice({ ...limits, windows: [] }, now)).toBe("No limits reported.");
+  expect(
+    usageSnapshotNotice(
+      { ...limits, unavailable: { reason: "probeFailed", message: "Sign in again" } },
+      now,
+    ),
+  ).toBe("Sign in again");
+});
 
 function provider(overrides: Partial<ServerProvider>): ServerProvider {
   return {
@@ -1505,4 +1526,16 @@ describe("ChatGPT sharing presentation", () => {
       }),
     ).toBe(false);
   });
+});
+
+it("keeps unreadable accounts visible in an explicit usage check", () => {
+  const missing = provider({});
+  const report = collectProviderUsageLimits(missing.instanceId, [missing], [], now, true);
+  expect(report?.accounts).toHaveLength(1);
+  expect(report?.accounts[0]?.limits.windows).toEqual([]);
+  expect(report?.accounts[0]?.limits.unavailable?.message).toContain("unavailable");
+  expect(
+    collectProviderUsageLimits(missing.instanceId, [{ ...missing, enabled: false }], [], now, true)
+      ?.accounts,
+  ).toEqual([]);
 });
