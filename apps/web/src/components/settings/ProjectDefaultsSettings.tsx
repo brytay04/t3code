@@ -157,6 +157,7 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
         selection && activeEntry ? (
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
             <ProviderModelPicker
+              autoRouteModels
               environmentId={representative?.environmentId ?? null}
               activeInstanceId={selection.instanceId}
               model={selection.model}
@@ -176,7 +177,7 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
                   });
               }}
               onInstanceModelChange={(instanceId, model) =>
-                setModel(createModelSelection(instanceId, model))
+                setModel({ ...createModelSelection(instanceId, model), routing: "auto" })
               }
             />
             {!mixedModel && !effortDisabledReason ? (
@@ -189,7 +190,10 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
                 planModeEnabled={settings.planModeEnabled}
                 triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
                 onModelOptionsChange={(options) =>
-                  setModel(createModelSelection(selection.instanceId, selection.model, options))
+                  setModel({
+                    ...createModelSelection(selection.instanceId, selection.model, options),
+                    routing: "auto",
+                  })
                 }
               />
             ) : null}

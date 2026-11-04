@@ -965,11 +965,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     provider: selectedProviderStatus,
     interactionMode: requestedInteractionMode,
   });
-  const selectedModelSelection: ModelSelection = createModelSelection(
-    selectedInstanceId,
-    selectedModel,
-    selectedModelOptionsForDispatch,
-  );
+  const selectedModelSelection: ModelSelection = {
+    routing: "auto",
+    ...createModelSelection(selectedInstanceId, selectedModel, selectedModelOptionsForDispatch),
+  };
   const selectedModelForPicker = selectedModel;
   const modelOptionsByInstance = new Map<ProviderInstanceId, ReadonlyArray<AppModelOption>>();
   for (const entry of providerInstanceEntries) {

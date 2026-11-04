@@ -19,6 +19,7 @@ import {
   RuntimeRequestId,
   TurnItemId,
   type ModelSelection,
+  type ServerProvider,
   type OrchestrationV2Run,
   type OrchestrationV2ShellSnapshot,
   type OrchestrationV2RuntimeRequest,
@@ -56,6 +57,7 @@ import * as ProjectEnrichmentService from "../project/ProjectEnrichmentService.t
 import * as ProjectService from "../project/ProjectService.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as McpSessionRegistryTestkit from "../mcp/McpSessionRegistry.testkit.ts";
+import * as ProviderRegistryMock from "../provider/testUtils/providerRegistryMock.ts";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
 import type { ProviderInstance } from "@t3tools/provider-core/server/driver";
 import * as VcsDriverRegistry from "../vcs/VcsDriverRegistry.ts";
@@ -304,7 +306,11 @@ const layerTest = Layer.mergeAll(
   Layer.provide(SqlitePersistence.layerMemory),
   Layer.provide(layerCheckpointStoreTest),
   Layer.provide(layerServerConfig),
-  Layer.provide(ServerSettings.layerTest()),
+  Layer.provide(
+    ServerSettings.layerTest({
+      providerInstances: { [alternateInstanceId]: { driver, enabled: true } },
+    }),
+  ),
   Layer.provide(layerTestProviderInstanceRegistry),
   Layer.provide(layerGitWorkflowTest),
   Layer.provide(layerProjectServiceTest),
@@ -8676,3 +8682,170 @@ it.layer(layerQueueResumeDisabledInstanceTest)(
     );
   },
 );
+
+const routingProviders: ServerProvider[] = [modelSelection.instanceId, alternateInstanceId].map(
+  (instanceId, index) => ({
+    instanceId,
+    driver,
+    enabled: true,
+    installed: true,
+    version: null,
+    status: "ready",
+    auth: { status: "authenticated" },
+    checkedAt: "1970-01-01T00:00:00.000Z",
+    models: [{ slug: modelSelection.model, name: "GPT", isCustom: false, capabilities: null }],
+    slashCommands: [],
+    skills: [],
+    usageLimits: {
+      checkedAt: "1970-01-01T00:00:00.000Z",
+      windows: [
+        { id: "weekly", label: "Weekly", kind: "weekly", usedPercent: index === 0 ? 100 : 5 },
+      ],
+    },
+  }),
+);
+it.layer(layerTest.pipe(Layer.provide(ProviderRegistryMock.layer(routingProviders))))(
+  "model capacity routing",
+  (it) => {
+    it.effect("persists one routed run and deduplicates the retried dispatch command", () =>
+      Effect.gen(function* () {
+        const orchestrator = yield* Orchestrator.OrchestratorV2;
+        const threads = yield* ThreadManagementService.ThreadManagementService;
+        const threadId = ThreadId.make("capacity-routed-dispatch");
+        yield* seedProject({
+          projectId: ProjectId.make("capacity-project"),
+          title: "Capacity",
+          workspaceRoot: process.cwd(),
+          defaultModelSelection: null,
+          createdAt: "1970-01-01T00:00:00.000Z",
+        });
+        yield* orchestrator.dispatch({
+          type: "thread.create",
+          commandId: CommandId.make("capacity-create"),
+          threadId,
+          createdBy: "user",
+          creationSource: "web",
+          projectId: ProjectId.make("capacity-project"),
+          title: "Capacity",
+          modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: null,
+          worktreePath: null,
+        });
+        const command = {
+          type: "message.dispatch" as const,
+          commandId: CommandId.make("capacity-send"),
+          threadId,
+          messageId: MessageId.make("capacity-message"),
+          text: "test",
+          attachments: [],
+          dispatchMode: { type: "start_immediately" as const },
+          createdBy: "user" as const,
+          creationSource: "web" as const,
+          modelSelection: { ...modelSelection, routing: "auto" as const },
+        };
+        yield* threads.dispatch(command);
+        yield* threads.dispatch(command);
+        const projection = yield* orchestrator.getThreadProjection(threadId);
+        assert.equal(projection.runs.length, 1);
+        assert.equal(projection.runs[0]!.providerInstanceId, alternateInstanceId);
+        assert.equal(projection.runs[0]!.modelSelection.model, modelSelection.model);
+        assert.equal(projection.thread.modelSelection.routing, "auto");
+        assert.equal(projection.attempts[0]!.providerInstanceId, alternateInstanceId);
+      }),
+    );
+  },
+);
+
+it.layer(layerTest)("suggested prompt dispatch", (it) => {
+  it.effect.each(["unchanged", "new-user-run", "queued-message"] as const)(
+    "sends only once when the completed thread is %s",
+    (scenario) =>
+      Effect.gen(function* () {
+        const orchestrator = yield* Orchestrator.OrchestratorV2;
+        const events = yield* EventSink.EventSinkV2;
+        const threadId = ThreadId.make(`suggestion:${scenario}`);
+        const projectId = ProjectId.make(`suggestion-project:${scenario}`);
+        yield* seedProject({
+          projectId,
+          title: "Suggestion",
+          workspaceRoot: process.cwd(),
+          defaultModelSelection: null,
+          createdAt: "1970-01-01T00:00:00.000Z",
+        });
+        yield* orchestrator.dispatch({
+          type: "thread.create",
+          commandId: CommandId.make(`${threadId}:create`),
+          threadId,
+          projectId,
+          title: "Suggestion",
+          modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: null,
+          worktreePath: null,
+          createdBy: "user",
+          creationSource: "web",
+        });
+        const send = {
+          type: "message.dispatch" as const,
+          threadId,
+          text: "Do the work",
+          attachments: [],
+          createdBy: "user" as const,
+          creationSource: "web" as const,
+          dispatchMode: { type: "defer_start" as const },
+        };
+        yield* orchestrator.dispatch({
+          ...send,
+          commandId: CommandId.make(`${threadId}:first`),
+          messageId: MessageId.make(`${threadId}:first`),
+        });
+        const source = (yield* orchestrator.getThreadProjection(threadId)).runs[0]!;
+        if (scenario === "queued-message") {
+          yield* orchestrator.dispatch({
+            ...send,
+            commandId: CommandId.make(`${threadId}:queued`),
+            messageId: MessageId.make(`${threadId}:queued`),
+            dispatchMode: { type: "queue_after_active" },
+          });
+        }
+        const now = yield* DateTime.now;
+        yield* events.write({
+          events: [
+            {
+              id: EventId.make(`${threadId}:completed`),
+              type: "run.updated",
+              threadId,
+              runId: source.id,
+              occurredAt: now,
+              payload: { ...source, status: "completed", completedAt: now },
+            },
+          ],
+        });
+        if (scenario === "new-user-run") {
+          yield* orchestrator.dispatch({
+            ...send,
+            commandId: CommandId.make(`${threadId}:user`),
+            messageId: MessageId.make(`${threadId}:user`),
+          });
+        }
+        const suggested = {
+          ...send,
+          commandId: CommandId.make(`${threadId}:suggestion`),
+          messageId: MessageId.make(`${threadId}:suggestion`),
+          suggestionForRunId: source.id,
+        };
+        const result = yield* orchestrator.dispatch(suggested).pipe(Effect.exit);
+        assert.equal(result._tag, scenario === "unchanged" ? "Success" : "Failure");
+        if (scenario === "unchanged") yield* orchestrator.dispatch(suggested);
+        const final = yield* orchestrator.getThreadProjection(threadId);
+        assert.equal(final.runs.length, 2);
+        assert.equal(
+          final.messages.filter((message) => message.id === suggested.messageId).length,
+          scenario === "unchanged" ? 1 : 0,
+        );
+      }),
+  );
+});

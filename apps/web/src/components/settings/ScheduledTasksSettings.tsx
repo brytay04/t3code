@@ -291,6 +291,7 @@ function splitModelKey(value: string): ModelSelection | null {
   return {
     instanceId: ProviderInstanceId.make(value.slice(0, index)),
     model: value.slice(index + 1),
+    routing: "auto",
   };
 }
 
@@ -1585,6 +1586,7 @@ function ScheduledTaskEditorForm({
           <Field label="Model">
             <div>
               <ProviderModelPicker
+                autoRouteModels
                 environmentId={environmentId}
                 disabled={saving || !connected}
                 activeInstanceId={activeInstanceId}

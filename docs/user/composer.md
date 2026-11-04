@@ -109,6 +109,16 @@ instance:
 }
 ```
 
+## Automatic model routing
+
+The chat model picker shows each built-in model once across configured providers.
+T3 chooses an authenticated provider with fresh remaining quota when a turn starts,
+including when a queued turn begins. The model ID, selected options, project restrictions,
+and permission mode stay the same. Custom models and explicit provider requests stay pinned.
+Providers without fresh quota data are not automatic fallback targets. If no eligible
+alternative has capacity, T3 keeps the selected provider; adding accounts cannot guarantee
+availability when every account is exhausted. Existing running turns are not replayed.
+
 ## Model defaults
 
 T3 Code remembers your provider, model, and model options for new threads. A
@@ -382,3 +392,9 @@ including filenames or folders containing `#` or `?`.
 
 On mobile, select a PDF attachment or link to open it. iOS uses the native viewer;
 Android opens a compatible installed file viewer.
+
+### Prompt suggestions and automatic follow-ups
+
+In **Settings → Threads**, choose **Prompt suggestions → Use selected model** to control which model writes the next prompt. Select its model and effort under **Prompt suggestion model**. Native mode uses the conversation provider’s native suggestion when available; the selected model is the fallback. Reset the model to inherit the text generation setting. Generated suggestions route across eligible accounts without changing the model or effort.
+
+**Auto-send suggestions** sends the next prompt to the thread’s existing model. Configure the delay (5–300 seconds) and consecutive-send limit (1–10 prompts); defaults are 10 seconds and 3 prompts. Sending a message yourself cancels stale suggestions and resets the count. A changed, active, archived, or queued thread cannot receive a stale automatic prompt. Auto-send is off by default.

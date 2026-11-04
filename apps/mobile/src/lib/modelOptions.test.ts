@@ -856,3 +856,21 @@ describe("synchronized mobile model visibility", () => {
     });
   });
 });
+
+it("offers one automatic model choice across accounts", () => {
+  const config = {
+    providers: ["personal", "work"].map((instanceId) => ({
+      instanceId,
+      driver: "claudeAgent",
+      enabled: true,
+      installed: true,
+      auth: { status: "authenticated" },
+      models: [{ slug: "claude-opus-5-5", name: "Opus", isCustom: false, capabilities: null }],
+    })),
+  } as unknown as ServerConfig;
+  const selection = { instanceId: ProviderInstanceId.make("work"), model: "claude-opus-5-5" };
+  const options = buildModelOptions(config, selection, undefined, null, false, true);
+  expect(options).toHaveLength(1);
+  expect(options[0]!.selection).toEqual({ ...selection, routing: "auto" });
+  expect(buildModelOptions(config, selection, undefined, null)).toHaveLength(2);
+});

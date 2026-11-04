@@ -145,6 +145,7 @@ export interface ThreadManagementSendInput {
   readonly text: string;
   readonly attachments: ReadonlyArray<ChatAttachment>;
   readonly modelSelection?: ModelSelection;
+  readonly suggestionForRunId?: RunId;
   readonly mode: ThreadManagementSendMode;
   readonly createdBy: OrchestrationV2Actor;
   readonly creationSource: OrchestrationV2CreationSource;
@@ -710,11 +711,16 @@ const make = Effect.gen(function* () {
       case "message.dispatch":
         return orchestrator.getThreadRecords(command.threadId, []).pipe(
           Effect.flatMap((projection) =>
-            assertProviderInstanceEnabled({
-              projectId: projection.thread.projectId,
-              commandId: command.commandId,
-              instanceId: (command.modelSelection ?? projection.thread.modelSelection).instanceId,
-            }),
+            (command.modelSelection ?? projection.thread.modelSelection).routing === "auto" &&
+            command.dispatchMode.type !== "steer_active" &&
+            command.dispatchMode.type !== "restart_active"
+              ? Effect.void
+              : assertProviderInstanceEnabled({
+                  projectId: projection.thread.projectId,
+                  commandId: command.commandId,
+                  instanceId: (command.modelSelection ?? projection.thread.modelSelection)
+                    .instanceId,
+                }),
           ),
         );
       case "delegated_task.request":
@@ -852,6 +858,9 @@ const make = Effect.gen(function* () {
       text: input.text,
       attachments: input.attachments,
       ...(input.modelSelection === undefined ? {} : { modelSelection: input.modelSelection }),
+      ...(input.suggestionForRunId === undefined
+        ? {}
+        : { suggestionForRunId: input.suggestionForRunId }),
       dispatchMode,
       createdBy: input.createdBy,
       creationSource: input.creationSource,

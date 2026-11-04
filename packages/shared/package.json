@@ -3,6 +3,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./modelRouting": {
+      "types": "./src/modelRouting.ts",
+      "import": "./src/modelRouting.ts"
+    },
     "./changedFileKind": {
       "types": "./src/changedFileKind.ts",
       "import": "./src/changedFileKind.ts"

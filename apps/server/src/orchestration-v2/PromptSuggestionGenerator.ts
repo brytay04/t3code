@@ -1,5 +1,8 @@
-import type { OrchestrationV2Run } from "@t3tools/contracts";
+import type { OrchestrationV2Run, ProjectId, ServerSettings as Settings } from "@t3tools/contracts";
 import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
+import { routeModelSelection } from "@t3tools/shared/modelRouting";
+import * as DateTime from "effect/DateTime";
+import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -14,19 +17,42 @@ import * as ProjectStore from "./ProjectStore.ts";
 import * as PromptSuggestionHub from "./PromptSuggestionHub.ts";
 import * as ThreadManagementService from "./ThreadManagementService.ts";
 
-/**
- * Writes a next-prompt suggestion after every completed run, for providers
- * without a native one, using the prompt suggestion model.
- *
- * Runs are read from the event stream so every provider is covered the same
- * way. A run created later bumps the thread's epoch first, so a slow
- * generation never lands after the user has moved on.
- */
+// Epochs discard suggestions generated for a turn the user has already moved past.
 
 /** Generations in flight at once; extra completions wait. */
 const MAX_CONCURRENT_GENERATIONS = 2;
 /** Run ids already handled; `run.updated` repeats for a completed run. */
 const MAX_SEEN_RUNS = 512;
+
+export const generateWithAvailableAccount = Effect.fn(
+  "PromptSuggestionGenerator.generateWithAvailableAccount",
+)(function* (input: {
+  settings: Settings;
+  projectId: ProjectId;
+  cwd: string;
+  userMessage: string;
+  assistantMessage: string;
+}) {
+  const { settings, projectId, ...prompt } = input;
+  const textGeneration = yield* TextGeneration.TextGeneration;
+  const providers = yield* Effect.serviceOption(ProviderRegistry.ProviderRegistry);
+  const projectSettings = resolveProjectSettings(settings, projectId).settings;
+  const selection =
+    settings.promptSuggestionModelSelection ?? projectSettings.textGenerationModelSelection;
+  const overrides = settings.projectSettingsOverrides[projectId]?.providerInstances ?? {};
+  const modelSelection = routeModelSelection({
+    selection: { ...selection, routing: selection.routing ?? "auto" },
+    runtimeMode: "text-generation",
+    now: DateTime.toEpochMillis(yield* DateTime.now),
+    providers: (Option.isSome(providers) ? yield* providers.value.getProviders : []).map(
+      (provider) => ({
+        ...provider,
+        enabled: provider.enabled && overrides[provider.instanceId]?.enabled !== false,
+      }),
+    ),
+  });
+  return yield* textGeneration.generatePromptSuggestion({ ...prompt, modelSelection });
+});
 
 export const layer = Layer.effectDiscard(
   Effect.gen(function* () {
@@ -36,7 +62,6 @@ export const layer = Layer.effectDiscard(
     const projects = yield* ProjectStore.ProjectStoreV2;
     const registry = yield* ProviderInstanceRegistry.ProviderInstanceRegistry;
     const serverSettings = yield* ServerSettings.ServerSettingsService;
-    const textGeneration = yield* TextGeneration.TextGeneration;
     const seenRuns = new Set<OrchestrationV2Run["id"]>();
 
     const generate = Effect.fn("PromptSuggestionGenerator.generate")(function* (
@@ -60,13 +85,12 @@ export const layer = Layer.effectDiscard(
       if (assistantMessage.trim().length === 0) return;
       const project = yield* projects.get(records.thread.projectId);
       if (Option.isNone(project)) return;
-      const projectSettings = resolveProjectSettings(settings, records.thread.projectId).settings;
-      const { suggestion } = yield* textGeneration.generatePromptSuggestion({
+      const { suggestion } = yield* generateWithAvailableAccount({
+        settings,
+        projectId: records.thread.projectId,
         cwd: records.thread.worktreePath ?? project.value.workspaceRoot,
         userMessage,
         assistantMessage,
-        modelSelection:
-          settings.promptSuggestionModelSelection ?? projectSettings.textGenerationModelSelection,
       });
       yield* hub.set({
         threadId: run.threadId,

@@ -10,13 +10,7 @@ import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
 
-/**
- * The latest next-prompt suggestion per thread.
- *
- * Suggestions never become orchestration events: they are a composer hint that
- * is stale as soon as the user acts, so the hub keeps one in memory per thread
- * and pushes changes to clients watching that thread.
- */
+// Suggestions are transient hints, not durable orchestration events.
 
 /** Threads whose suggestion is remembered; the least recently set is dropped beyond this. */
 const MAX_THREADS = 256;
@@ -57,7 +51,7 @@ export class PromptSuggestionHub extends Context.Service<
   PromptSuggestionHubShape
 >()("t3/orchestration-v2/PromptSuggestionHub") {}
 
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const changes = yield* PubSub.unbounded<PromptSuggestionChange>();
   // Insertion order doubles as recency: every write re-inserts its entry.
   const latest = new Map<ThreadId, OrchestrationV2PromptSuggestion>();

@@ -22,6 +22,8 @@ import {
   type ResponseStreamingMode,
   type QuitConfirmationMode,
   PromptSuggestionMode,
+  PromptSuggestionDelaySeconds,
+  PromptSuggestionMaxAutoSends,
   SidebarProjectSortOrder,
 } from "@t3tools/contracts/settings";
 import { desktopUpdateChannelOf } from "@t3tools/shared/cliRelease";
@@ -125,9 +127,11 @@ const RESPONSE_STREAMING_MODE_DESCRIPTIONS: Record<ResponseStreamingMode, string
 const PROMPT_SUGGESTION_MODE_LABELS: Record<PromptSuggestionMode, string> = {
   off: "Off",
   "native-first": "Native when available",
-  generated: "Always generate",
+  generated: "Use selected model",
 };
 const isPromptSuggestionMode = Schema.is(PromptSuggestionMode);
+const isPromptSuggestionDelaySeconds = Schema.is(PromptSuggestionDelaySeconds);
+const isPromptSuggestionMaxAutoSends = Schema.is(PromptSuggestionMaxAutoSends);
 const SIDEBAR_PROJECT_SORT_ORDER_LABELS: Record<SidebarProjectSortOrder, string> = {
   updated_at: "Last user message",
   created_at: "Created at",
@@ -1557,14 +1561,10 @@ export function ThreadsSettingsPanel() {
     settings,
     textGenerationModelInstanceEntries,
   );
-  const promptSuggestionSelection = resolveAppModelSelectionState(
-    {
-      ...settings,
-      textGenerationModelSelection:
-        settings.promptSuggestionModelSelection ?? settings.textGenerationModelSelection,
-    },
-    textGenerationProviders,
-  );
+  const promptSuggestionSelection =
+    settings.promptSuggestionModelSelection ??
+    settings.textGenerationModelSelection ??
+    textGenerationModelSelection;
   const promptSuggestionInstanceEntry = textGenerationModelInstanceEntries.find(
     (entry) => entry.instanceId === promptSuggestionSelection.instanceId,
   );
@@ -1902,7 +1902,7 @@ export function ThreadsSettingsPanel() {
             serverScoped
             settingKeys={["promptSuggestionModelSelection"]}
             {...searchableSetting("prompt-suggestion-model")}
-            description="Writes suggestions for providers without their own. A small, fast model works well. Reset to use the text generation model."
+            description="Writes suggestions in Use selected model mode; Native mode uses this only for providers without native suggestions. Accounts route by capacity while keeping this model and its options. Reset to inherit the text generation model."
             resetAction={
               settings.promptSuggestionModelSelection !== null ? (
                 <SettingResetButton
@@ -1923,6 +1923,7 @@ export function ThreadsSettingsPanel() {
               ) : (
                 <div className="flex flex-wrap items-center justify-end gap-1.5">
                   <ProviderModelPicker
+                    autoRouteModels
                     environmentId={environmentId}
                     activeInstanceId={promptSuggestionSelection.instanceId}
                     model={promptSuggestionSelection.model}
@@ -1943,7 +1944,10 @@ export function ThreadsSettingsPanel() {
                         return;
                       }
                       updateSettings({
-                        promptSuggestionModelSelection: createModelSelection(instanceId, model),
+                        promptSuggestionModelSelection: {
+                          ...createModelSelection(instanceId, model),
+                          routing: "auto",
+                        },
                       });
                     }}
                   />
@@ -1961,11 +1965,14 @@ export function ThreadsSettingsPanel() {
                       triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
                       onModelOptionsChange={(nextOptions) =>
                         updateSettings({
-                          promptSuggestionModelSelection: createModelSelection(
-                            promptSuggestionSelection.instanceId,
-                            promptSuggestionSelection.model,
-                            nextOptions,
-                          ),
+                          promptSuggestionModelSelection: {
+                            ...createModelSelection(
+                              promptSuggestionSelection.instanceId,
+                              promptSuggestionSelection.model,
+                              nextOptions,
+                            ),
+                            routing: "auto",
+                          },
                         })
                       }
                     />
@@ -1980,7 +1987,7 @@ export function ThreadsSettingsPanel() {
             serverScoped
             settingKeys={["promptSuggestionAutoSend"]}
             {...searchableSetting("prompt-suggestion-auto-send")}
-            description="Send the suggestion as the next prompt 10 seconds after a reply, unless you send something first. Stops after 3 in a row until you write one yourself."
+            description="Send suggestions after a delay, up to the consecutive-send limit. Sending your own message resets the count. The thread’s model answers; the suggestion model only writes the next prompt."
             control={
               <ScopedSwitch
                 settingKeys={["promptSuggestionAutoSend"]}
@@ -1990,6 +1997,64 @@ export function ThreadsSettingsPanel() {
               />
             }
           />
+        ) : null}
+        {settings.promptSuggestionMode !== "off" && settings.promptSuggestionAutoSend ? (
+          <>
+            <SettingsRow
+              serverScoped
+              settingKeys={["promptSuggestionDelaySeconds"]}
+              {...searchableSetting("prompt-suggestion-delay")}
+              description="Wait before sending a suggested prompt. Changes apply to the next suggestion."
+              control={
+                <Select
+                  value={String(settings.promptSuggestionDelaySeconds)}
+                  onValueChange={(value) => {
+                    const seconds = Number(value);
+                    if (isPromptSuggestionDelaySeconds(seconds))
+                      updateSettings({ promptSuggestionDelaySeconds: seconds });
+                  }}
+                >
+                  <SelectTrigger size="sm" aria-label="Auto-send delay">
+                    <SelectValue>{settings.promptSuggestionDelaySeconds} seconds</SelectValue>
+                  </SelectTrigger>
+                  <SelectPopup align="end">
+                    {PromptSuggestionDelaySeconds.literals.map((seconds) => (
+                      <SelectItem key={seconds} value={String(seconds)}>
+                        {seconds} seconds
+                      </SelectItem>
+                    ))}
+                  </SelectPopup>
+                </Select>
+              }
+            />
+            <SettingsRow
+              serverScoped
+              settingKeys={["promptSuggestionMaxAutoSends"]}
+              {...searchableSetting("prompt-suggestion-limit")}
+              description="Stop after this many consecutive automatic prompts. Your next message starts a new count."
+              control={
+                <Select
+                  value={String(settings.promptSuggestionMaxAutoSends)}
+                  onValueChange={(value) => {
+                    const count = Number(value);
+                    if (isPromptSuggestionMaxAutoSends(count))
+                      updateSettings({ promptSuggestionMaxAutoSends: count });
+                  }}
+                >
+                  <SelectTrigger size="sm" aria-label="Auto-send limit">
+                    <SelectValue>{settings.promptSuggestionMaxAutoSends} prompts</SelectValue>
+                  </SelectTrigger>
+                  <SelectPopup align="end">
+                    {PromptSuggestionMaxAutoSends.literals.map((count) => (
+                      <SelectItem key={count} value={String(count)}>
+                        {count} prompts
+                      </SelectItem>
+                    ))}
+                  </SelectPopup>
+                </Select>
+              }
+            />
+          </>
         ) : null}
         <AdvancedSettings
           targetIds={[

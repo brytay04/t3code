@@ -82,6 +82,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
   lockedProvider: ProviderDriverKind | null;
   lockedContinuationGroupKey?: string | null;
   instanceEntries: ReadonlyArray<ProviderInstanceEntry>;
+  autoRouteModels?: boolean | undefined;
   keybindings?: ResolvedKeybindingsConfig;
   modelOptionsByInstance: ReadonlyMap<ProviderInstanceId, ReadonlyArray<ModelEsque>>;
   activeProviderIconClassName?: string;
@@ -145,7 +146,9 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
     ? `${getDisplayModelName(selectedModel)}${selectedModel.isUnavailable ? " (Unavailable)" : ""}`
     : triggerTitle;
   const showInstanceBadge =
-    activeEntry !== null && shouldShowInstanceBadge(activeEntry, props.instanceEntries);
+    !props.autoRouteModels &&
+    activeEntry !== null &&
+    shouldShowInstanceBadge(activeEntry, props.instanceEntries);
 
   const setIsMenuOpen = (open: boolean) => {
     props.onOpenChange?.(open);
@@ -248,6 +251,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
 
   const picker = (
     <ModelPickerContent
+      autoRouteModels={props.autoRouteModels}
       searchInputRef={searchInputRef}
       environmentId={props.environmentId}
       activeInstanceId={activeInstanceId}

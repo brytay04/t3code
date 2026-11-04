@@ -719,6 +719,18 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["autoprompt autopilot auto continue keep going next prompt"],
   },
   {
+    id: "prompt-suggestion-delay",
+    title: "Auto-send delay",
+    to: "/settings/threads",
+    searchTerms: ["autoprompt wait seconds interval"],
+  },
+  {
+    id: "prompt-suggestion-limit",
+    title: "Auto-send limit",
+    to: "/settings/threads",
+    searchTerms: ["autoprompt maximum consecutive prompts cap"],
+  },
+  {
     id: "app-version",
     title: "Version",
     to: "/settings/about",

@@ -362,19 +362,21 @@ export function ComposerModelPicker({
   const toggleModel = (instanceId: ProviderInstanceId, model: string) => {
     const current = multipleModelSelections ?? [selectedModelSelection];
     const matchesModel = (selection: ModelSelection) => {
-      if (selection.instanceId !== instanceId) return false;
       const entry = instanceEntries.find((entry) => entry.instanceId === selection.instanceId);
       const resolvedModel = resolveModelPickerSelectedModel({
         driverKind: entry?.driverKind,
         model: selection.model,
         options: modelOptionsByInstance?.get(selection.instanceId) ?? [],
       });
-      return (resolvedModel?.slug ?? selection.model) === model;
+      return (
+        (resolvedModel?.slug ?? selection.model) === model &&
+        (!resolvedModel?.isCustom || selection.instanceId === instanceId)
+      );
     };
     const exists = current.some(matchesModel);
     const next = exists
       ? current.filter((selection) => !matchesModel(selection))
-      : [...current, createModelSelection(instanceId, model)];
+      : [...current, { ...createModelSelection(instanceId, model), routing: "auto" as const }];
     if (next.length > 1) {
       onMultipleModelSelectionsChange(next);
     } else {
@@ -388,6 +390,7 @@ export function ComposerModelPicker({
   return (
     <ProviderModelPicker
       {...pickerProps}
+      autoRouteModels
       {...(multipleModelsEnabled
         ? {
             ...(multipleModelSelections !== null

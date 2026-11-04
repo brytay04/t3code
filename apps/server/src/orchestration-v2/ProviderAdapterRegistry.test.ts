@@ -7,7 +7,10 @@ import {
   ProviderSessionId,
   ThreadId,
   ProviderSetupError,
+  type ServerProvider,
 } from "@t3tools/contracts";
+import * as ProviderRegistryMock from "../provider/testUtils/providerRegistryMock.ts";
+import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
@@ -195,4 +198,56 @@ it.effect("interrupts admitted session startup when a shared peer signs out", ()
     yield* Deferred.await(stopped);
     assert.isTrue(Exit.isFailure(yield* Fiber.await(startup)));
   }).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
+);
+
+it.effect("routes using registry quota snapshots and respects project exclusions", () =>
+  Effect.gen(function* () {
+    const now = DateTime.formatIso(yield* DateTime.now);
+    const snapshots: ServerProvider[] = [personalId, workId].map((instanceId, index) => ({
+      instanceId,
+      driver,
+      enabled: true,
+      installed: true,
+      version: null,
+      status: "ready",
+      auth: { status: "authenticated" },
+      checkedAt: now,
+      models: [{ slug: "gpt-6-astra", name: "GPT-6 Astra", isCustom: false, capabilities: null }],
+      slashCommands: [],
+      skills: [],
+      usageLimits: {
+        checkedAt: now,
+        windows: [
+          { id: "weekly", label: "Weekly", kind: "weekly", usedPercent: index === 0 ? 100 : 5 },
+        ],
+      },
+    }));
+    const layer = ProviderAdapterRegistry.layerFromProviderInstanceRegistry.pipe(
+      Layer.provide(layerInstanceRegistry),
+      Layer.provide(ProviderRegistryMock.layer(snapshots)),
+    );
+    yield* Effect.gen(function* () {
+      const registry = yield* ProviderAdapterRegistry.ProviderAdapterRegistryV2;
+      const selection = { instanceId: personalId, model: "gpt-6-astra", routing: "auto" as const };
+      const routed = yield* registry.routeSelection!({
+        selection,
+        runtimeMode: "full-access",
+        disabledInstanceIds: [],
+      });
+      assert.equal(routed.instanceId, workId);
+      assert.equal(routed.model, selection.model);
+      const disabledSource = yield* registry.routeSelection!({
+        selection,
+        runtimeMode: "full-access",
+        disabledInstanceIds: [personalId],
+      });
+      assert.equal(disabledSource.instanceId, workId);
+      const excluded = yield* registry.routeSelection!({
+        selection,
+        runtimeMode: "full-access",
+        disabledInstanceIds: [workId],
+      });
+      assert.equal(excluded.instanceId, personalId);
+    }).pipe(Effect.provide(layer));
+  }),
 );

@@ -1,8 +1,14 @@
 import {
   ProviderInstanceId,
+  type ModelSelection,
+  type RuntimeMode,
   ProviderSetupError,
   type OrchestrationV2ProviderCapabilities,
 } from "@t3tools/contracts";
+import { routeModelSelection } from "@t3tools/shared/modelRouting";
+import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
+import * as Option from "effect/Option";
+import * as DateTime from "effect/DateTime";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -39,6 +45,11 @@ export const ProviderAdapterRegistryV2Error = Schema.Union([
 export type ProviderAdapterRegistryV2Error = typeof ProviderAdapterRegistryV2Error.Type;
 
 export interface ProviderAdapterRegistryV2Shape {
+  readonly routeSelection?: (input: {
+    selection: ModelSelection;
+    runtimeMode: RuntimeMode;
+    disabledInstanceIds: ReadonlyArray<string>;
+  }) => Effect.Effect<ModelSelection>;
   readonly get: (
     instanceId: ProviderInstanceId,
   ) => Effect.Effect<ProviderAdapter.ProviderAdapterV2["Service"], ProviderAdapterRegistryV2Error>;
@@ -67,7 +78,20 @@ export const layerFromProviderInstanceRegistry: Layer.Layer<
   ProviderAdapterRegistryV2,
   Effect.gen(function* () {
     const instances = yield* ProviderInstanceRegistry.ProviderInstanceRegistry;
+    const providers = yield* Effect.serviceOption(ProviderRegistry.ProviderRegistry);
     return ProviderAdapterRegistryV2.of({
+      routeSelection: Effect.fn("ProviderAdapterRegistry.routeSelection")(function* (input) {
+        if (Option.isNone(providers)) return input.selection;
+        const snapshots = yield* providers.value.getProviders;
+        return routeModelSelection({
+          ...input,
+          providers: snapshots.map((provider) => ({
+            ...provider,
+            enabled: provider.enabled && !input.disabledInstanceIds.includes(provider.instanceId),
+          })),
+          now: DateTime.toEpochMillis(yield* DateTime.now),
+        });
+      }),
       get: Effect.fn("ProviderAdapterRegistryV2.get")(function (instanceId) {
         return instances.getInstance(instanceId).pipe(
           Effect.flatMap((instance) => {

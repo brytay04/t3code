@@ -2,6 +2,7 @@ import type { ProviderDriverKind } from "@t3tools/contracts";
 import { resolveModelShortName } from "@t3tools/client-runtime/provider-clients";
 
 export type ModelEsque = {
+  isCustom?: boolean | undefined;
   slug: string;
   name: string;
   shortName?: string | undefined;

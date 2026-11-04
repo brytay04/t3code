@@ -282,6 +282,7 @@ export function buildModelOptions(
   providerInstanceId: ModelSelection["instanceId"] | undefined,
   projectId: ProjectId | null,
   includeHidden = false,
+  autoRouteModels = false,
 ): ReadonlyArray<ModelOption> {
   const options = new Map<string, ModelOption>();
   const lockedProvider = config?.providers.find(
@@ -455,7 +456,21 @@ export function buildModelOptions(
     }
   }
 
-  return [...options.values()];
+  if (!autoRouteModels || providerInstanceId !== undefined) return [...options.values()];
+  const choices = new Map<string, ModelOption>();
+  for (const option of options.values()) {
+    const key = option.canHide ? option.selection.model : option.key;
+    const previous = choices.get(key);
+    if (
+      !previous ||
+      (previous.isUnavailable && !option.isUnavailable) ||
+      (Boolean(previous.isUnavailable) === Boolean(option.isUnavailable) &&
+        option.selection.instanceId === fallbackModelSelection?.instanceId)
+    ) {
+      choices.set(key, { ...option, selection: { ...option.selection, routing: "auto" } });
+    }
+  }
+  return [...choices.values()];
 }
 
 export function groupByProvider(options: ReadonlyArray<ModelOption>): ReadonlyArray<ProviderGroup> {

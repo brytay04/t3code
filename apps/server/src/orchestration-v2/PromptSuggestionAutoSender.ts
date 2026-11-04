@@ -10,18 +10,8 @@ import * as EventSink from "./EventSink.ts";
 import * as PromptSuggestionHub from "./PromptSuggestionHub.ts";
 import * as ThreadManagementService from "./ThreadManagementService.ts";
 
-/**
- * Sends a thread's suggested next prompt on its own when
- * `promptSuggestionAutoSend` is on.
- *
- * Each send waits a moment first, so a prompt the user sends wins: it starts a
- * run, which bumps the thread's suggestion epoch and drops the pending send.
- * A streak of auto-sends stops at a cap until the user writes one themselves,
- * so an idle thread never loops on its own suggestions.
- */
+// The server owns the delay and streak so disconnected clients cannot duplicate auto-sends.
 
-export const AUTO_SEND_DELAY = Duration.seconds(10);
-export const MAX_AUTO_SENDS_IN_A_ROW = 3;
 /** Auto-sent message ids awaiting their run; bounded in case a send never starts one. */
 const MAX_PENDING_MESSAGES = 256;
 
@@ -46,15 +36,21 @@ export const layer = Layer.effectDiscard(
       change: PromptSuggestionHub.PromptSuggestionChange,
     ) {
       const streak = streaks.get(change.threadId) ?? 0;
-      if (streak >= MAX_AUTO_SENDS_IN_A_ROW || !(yield* autoSendEnabled)) return;
-      yield* Effect.sleep(AUTO_SEND_DELAY);
-      if (!(yield* autoSendEnabled)) return;
+      const settings = yield* serverSettings.getSettings;
+      if (streak >= settings.promptSuggestionMaxAutoSends || !(yield* autoSendEnabled)) return;
+      const source = yield* threads.getThreadShell(change.threadId);
+      if (source === null || source.latestRunId === null) return;
+      yield* Effect.sleep(Duration.seconds(settings.promptSuggestionDelaySeconds));
+      const currentSettings = yield* serverSettings.getSettings;
+      if (!(yield* autoSendEnabled) || streak >= currentSettings.promptSuggestionMaxAutoSends)
+        return;
       if ((yield* hub.epoch(change.threadId)) !== change.epoch) return;
       const thread = yield* threads.getThreadShell(change.threadId);
       if (
         thread === null ||
         thread.archivedAt !== null ||
         thread.activeRunId !== null ||
+        thread.latestRunId !== source.latestRunId ||
         thread.lineage.relationshipToParent === "subagent"
       )
         return;
@@ -65,18 +61,27 @@ export const layer = Layer.effectDiscard(
       if (autoMessages.size > MAX_PENDING_MESSAGES) {
         autoMessages.delete(autoMessages.values().next().value!);
       }
+      yield* threads
+        .sendToThread({
+          projectId: thread.projectId,
+          commandId: CommandId.make(`server:${messageId}`),
+          threadId: change.threadId,
+          messageId,
+          suggestionForRunId: source.latestRunId,
+          text: change.suggestion,
+          attachments: [],
+          mode: "auto",
+          createdBy: "agent",
+          creationSource: "server",
+        })
+        .pipe(
+          Effect.tapError(() =>
+            Effect.sync(() => {
+              autoMessages.delete(messageId);
+            }),
+          ),
+        );
       streaks.set(change.threadId, streak + 1);
-      yield* threads.sendToThread({
-        projectId: thread.projectId,
-        commandId: CommandId.make(`server:${messageId}`),
-        threadId: change.threadId,
-        messageId,
-        text: change.suggestion,
-        attachments: [],
-        mode: "auto",
-        createdBy: "agent",
-        creationSource: "server",
-      });
     });
 
     // A run started by anything but an auto-send means the user is back: reset the streak.

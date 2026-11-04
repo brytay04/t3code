@@ -1,3 +1,4 @@
+import { resolveProjectProviderInstanceEnabled } from "@t3tools/contracts";
 import type {
   GuestShareId,
   OrchestrationV2SearchThreadInput,
@@ -1100,6 +1101,27 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     },
   );
 
+  const routeSelection = Effect.fn("Orchestrator.routeSelection")(function* (
+    selection: ModelSelection,
+    thread: OrchestrationV2AppThread,
+  ) {
+    if (
+      selection.routing !== "auto" ||
+      isProviderNativeSubagentThread(thread) ||
+      !providerAdapters.routeSelection
+    )
+      return selection;
+    const settings = yield* serverSettings.getSettings.pipe(Effect.orDie);
+    const overrides = settings.projectSettingsOverrides[thread.projectId]?.providerInstances ?? {};
+    return yield* providerAdapters.routeSelection({
+      selection,
+      runtimeMode: thread.runtimeMode,
+      disabledInstanceIds: Object.entries(overrides)
+        .filter(([, value]) => value.enabled === false)
+        .map(([id]) => id),
+    });
+  });
+
   const mapDispatchError =
     (command: OrchestrationV2ServerCommand) =>
     <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, OrchestratorDispatchError, R> =>
@@ -1669,7 +1691,10 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       const queuedMessage = projection.messages.find(
         (candidate) => candidate.id === storedQueuedRun.userMessageId,
       );
-      const modelSelection = queuedRunModelSelection(projection, storedQueuedRun);
+      const modelSelection = yield* routeSelection(
+        queuedRunModelSelection(projection, storedQueuedRun),
+        projection.thread,
+      );
       const queuedRun = {
         ...storedQueuedRun,
         modelSelection,
@@ -5469,6 +5494,23 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     effects: Ref.Ref<Array<PendingOrchestrationEffectV2>>,
   ) {
     let projection = yield* getProjectionWithPendingEvents(command.threadId, events);
+    if (command.suggestionForRunId !== undefined) {
+      const latestRun = latestExecutedRun(projection.runs);
+      if (
+        latestRun?.id !== command.suggestionForRunId ||
+        latestRun.status !== "completed" ||
+        projection.thread.archivedAt !== null ||
+        projection.thread.deletedAt !== null ||
+        projection.runs.some((run) => isBlockingRun(run) || run.status === "queued") ||
+        projection.runtimeRequests.some((request) => request.status === "pending")
+      ) {
+        return yield* new OrchestratorDispatchError({
+          commandId: command.commandId,
+          commandType: command.type,
+          cause: "The thread changed before its suggested prompt could be sent.",
+        });
+      }
+    }
     if (command.manualContinuationOfRunId !== undefined) {
       const source = projection.runs.find((run) => run.id === command.manualContinuationOfRunId);
       const limited = latestRootProviderFailure(source ?? null, projection.turnItems);
@@ -5678,7 +5720,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       ]);
       projection = applyToProjection(projection, event);
     }
-    const modelSelection = command.modelSelection ?? projection.thread.modelSelection;
+    let modelSelection = command.modelSelection ?? projection.thread.modelSelection;
     let dispatchMode = resolveMessageDispatchIntent(
       projection,
       command.dispatchMode,
@@ -5931,6 +5973,22 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         forceRestart: dispatchMode.type === "restart_active",
       });
       return;
+    }
+
+    modelSelection = yield* routeSelection(modelSelection, projection.thread);
+    if (
+      modelSelection.routing === "auto" &&
+      !resolveProjectProviderInstanceEnabled(
+        yield* serverSettings.getSettings.pipe(Effect.orDie),
+        projection.thread.projectId,
+        modelSelection.instanceId,
+      )
+    ) {
+      return yield* new OrchestratorDispatchError({
+        commandId: command.commandId,
+        commandType: command.type,
+        cause: "No enabled account can run the selected model.",
+      });
     }
 
     const activeProviderThread = projection.providerThreads.find(
@@ -6292,6 +6350,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     const now = yield* DateTime.now;
     if (
       !modelSelectionsEqual(projection.thread.modelSelection, modelSelection) ||
+      projection.thread.modelSelection.routing !== modelSelection.routing ||
       projection.thread.providerInstanceId !== modelSelection.instanceId
     ) {
       yield* emit(

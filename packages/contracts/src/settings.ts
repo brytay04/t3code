@@ -1199,6 +1199,8 @@ export type StorageCleanupSettings = typeof StorageCleanupSettings.Type;
  * always asks the prompt suggestion model.
  */
 export const PromptSuggestionMode = Schema.Literals(["off", "native-first", "generated"]);
+export const PromptSuggestionDelaySeconds = Schema.Literals([5, 10, 30, 60, 300]);
+export const PromptSuggestionMaxAutoSends = Schema.Literals([1, 3, 5, 10]);
 export type PromptSuggestionMode = typeof PromptSuggestionMode.Type;
 
 export const ServerSettings = Schema.Struct({
@@ -1375,6 +1377,12 @@ export const ServerSettings = Schema.Struct({
   ),
   /** Sends each suggestion as the next prompt on its own, a few times in a row at most. */
   promptSuggestionAutoSend: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  promptSuggestionDelaySeconds: PromptSuggestionDelaySeconds.pipe(
+    Schema.withDecodingDefault(Effect.succeed(10)),
+  ),
+  promptSuggestionMaxAutoSends: PromptSuggestionMaxAutoSends.pipe(
+    Schema.withDecodingDefault(Effect.succeed(3)),
+  ),
 
   pullRequestMergeMethod: Schema.NullOr(PullRequestMergeMethod).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
@@ -1690,6 +1698,8 @@ export const ServerSettingsPatch = Schema.Struct({
   promptSuggestionMode: Schema.optionalKey(PromptSuggestionMode),
   promptSuggestionModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   promptSuggestionAutoSend: Schema.optionalKey(Schema.Boolean),
+  promptSuggestionDelaySeconds: Schema.optionalKey(PromptSuggestionDelaySeconds),
+  promptSuggestionMaxAutoSends: Schema.optionalKey(PromptSuggestionMaxAutoSends),
   backgroundActivity: Schema.optionalKey(
     Schema.Struct({
       schemaVersion: Schema.optionalKey(Schema.Literal(1)),

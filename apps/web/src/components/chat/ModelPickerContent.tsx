@@ -78,9 +78,34 @@ type ModelPickerItem = {
   acpRegistryAgentId?: string | undefined;
   acpRegistryIconUrl?: string | undefined;
   continuationGroupKey?: string | undefined;
+  isCustom?: boolean | undefined;
   isLegacy?: boolean | undefined;
   isUnavailable?: boolean | undefined;
 };
+
+export function uniqueModelChoices<
+  T extends {
+    slug: string;
+    instanceId: ProviderInstanceId;
+    driverKind: ProviderDriverKind;
+    isCustom?: boolean | undefined;
+    isUnavailable?: boolean | undefined;
+  },
+>(models: ReadonlyArray<T>, activeInstanceId: ProviderInstanceId): T[] {
+  const choices = new Map<string, T>();
+  for (const model of models) {
+    const key = model.isCustom ? `${model.instanceId}:${model.slug}` : model.slug;
+    const previous = choices.get(key);
+    if (
+      !previous ||
+      (previous.isUnavailable && !model.isUnavailable) ||
+      (Boolean(previous.isUnavailable) === Boolean(model.isUnavailable) &&
+        model.instanceId === activeInstanceId)
+    )
+      choices.set(key, model);
+  }
+  return [...choices.values()];
+}
 
 export function resolveModelPickerSelectedModel(input: {
   driverKind: ProviderDriverKind | undefined;
@@ -353,6 +378,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
   lockedProvider: ProviderDriverKind | null;
   lockedContinuationGroupKey?: string | null;
   instanceEntries: ReadonlyArray<ProviderInstanceEntry>;
+  autoRouteModels?: boolean | undefined;
   keybindings?: ResolvedKeybindingsConfig;
   modelOptionsByInstance: ReadonlyMap<ProviderInstanceId, ReadonlyArray<ModelEsque>>;
   terminalOpen: boolean;
@@ -562,6 +588,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
         }
         out.push({
           slug: model.slug,
+          isCustom: model.isCustom,
           name: model.name,
           ...(model.shortName ? { shortName: model.shortName } : {}),
           ...(model.subProvider ? { subProvider: model.subProvider } : {}),
@@ -637,11 +664,15 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
     }
     return [...available, ...disabled];
   })();
-  const showSidebar = !isSearching && sidebarInstanceEntries.length > 0;
+  const showSidebar =
+    (!props.autoRouteModels || isLocked) && !isSearching && sidebarInstanceEntries.length > 0;
   const instanceOrder = instanceEntries.map((entry) => entry.instanceId);
 
   const filteredModels = (() => {
-    let result = flatModels;
+    let result =
+      !props.autoRouteModels || isLocked
+        ? flatModels
+        : uniqueModelChoices(flatModels, props.activeInstanceId);
 
     if (searchQuery.trim()) {
       const candidates =
@@ -663,10 +694,15 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
       } else {
         result = result.filter((m) => m.instanceId === selectedInstanceId);
       }
-    } else if (selectedInstanceId === "favorites") {
-      result = result.filter((m) => favoritesSet.has(providerModelKey(m.instanceId, m.slug)));
-    } else {
-      result = result.filter((m) => m.instanceId === selectedInstanceId);
+    }
+
+    if (!props.autoRouteModels && lockedProvider === null) {
+      result =
+        selectedInstanceId === "favorites"
+          ? result.filter((model) =>
+              favoritesSet.has(providerModelKey(model.instanceId, model.slug)),
+            )
+          : result.filter((model) => model.instanceId === selectedInstanceId);
     }
 
     return sortProviderModelItems(result, {
@@ -677,7 +713,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
   })();
 
   const legacySection = (() => {
-    if (isSearching || selectedInstanceId === "favorites") {
+    if ((props.autoRouteModels && !isLocked) || isSearching || selectedInstanceId === "favorites") {
       return null;
     }
     const currentModels: ModelPickerItem[] = [];
@@ -1054,7 +1090,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
                         : modelKey === activeModelKey
                     }
                     favoriteStarOnHover={selectedInstanceId === "favorites" && !isSearching}
-                    showInstanceBadge={badgedInstanceIds.has(model.instanceId)}
+                    showInstanceBadge={!props.autoRouteModels && badgedInstanceIds.has(model.instanceId)}
                     showNewBadge={model.badge === "new"}
                     unavailable={model.isUnavailable === true}
                     jumpLabel={modelJumpLabelByKey.get(modelKey) ?? null}

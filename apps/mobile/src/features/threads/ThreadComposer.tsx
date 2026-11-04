@@ -712,6 +712,8 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     currentModelSelection,
     lockedProviderInstanceId,
     props.selectedThread.projectId,
+    false,
+    true,
   );
   const currentModelOption =
     modelOptions.find(

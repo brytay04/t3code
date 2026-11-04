@@ -70,3 +70,12 @@ it.effect(
       assert.deepStrictEqual(encoded.options, decoded.options);
     }),
 );
+
+it.effect("preserves automatic routing through the wire schema", () =>
+  Effect.gen(function* () {
+    const selection = { instanceId: "claudeAgent", model: "claude-opus-5-5", routing: "auto" };
+    const decoded = yield* decodeModelSelection(selection);
+    const encoded = yield* encodeModelSelection(decoded);
+    assert.deepEqual(encoded, selection);
+  }),
+);
