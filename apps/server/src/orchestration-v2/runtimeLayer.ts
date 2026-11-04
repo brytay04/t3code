@@ -331,11 +331,7 @@ const layerPromptSuggestionGeneratorProvided = PromptSuggestionGenerator.layer.p
 );
 const layerPromptSuggestionAutoSenderProvided = PromptSuggestionAutoSender.layer.pipe(
   Layer.provide(
-    Layer.mergeAll(
-      layerThreadManagementProvided,
-      layerEventSink,
-      PromptSuggestionHub.layer,
-    ),
+    Layer.mergeAll(layerThreadManagementProvided, layerEventSink, PromptSuggestionHub.layer),
   ),
 );
 const layerEffectExecutorProvided = EffectWorker.layerExecutor.pipe(

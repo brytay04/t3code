@@ -19,7 +19,13 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock(import("./ui/toast"), async (original) => {
   const actual = await original();
-  return { ...actual, toastManager: { ...actual.toastManager, add: state.toast as never } };
+  return {
+    ...actual,
+    threadNotificationToastManager: {
+      ...actual.threadNotificationToastManager,
+      add: state.toast as never,
+    },
+  };
 });
 vi.mock(import("../state/shell"), async (original) => {
   const actual = await original();
@@ -207,6 +213,7 @@ function setup() {
   const router = {
     state: { matches: [{ params: {} }] },
     navigate: state.navigate,
+    subscribe: () => () => undefined,
   } as unknown as AnyRouter;
   return {
     start: () => {

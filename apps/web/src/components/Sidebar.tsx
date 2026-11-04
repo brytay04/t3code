@@ -116,7 +116,11 @@ import {
   getSidebarProjectSettingsKey,
   type SidebarProjectSnapshot,
 } from "../sidebarProjectGrouping";
-import { isSidebarViewScopeKey, resolveSidebarViewProjectKeys, sidebarViewScopeItems } from "../sidebarViews";
+import {
+  isSidebarViewScopeKey,
+  resolveSidebarViewProjectKeys,
+  sidebarViewScopeItems,
+} from "../sidebarViews";
 import { resolveProjectExpanded, useUiStateStore } from "../uiStateStore";
 import {
   getThreadKeysToDeselectAfterDelete,
@@ -1102,7 +1106,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     projectGroups.filter((project) => project.archived).map((project) => project.projectKey),
   );
   const selectedViews = persistedProjectScopeKeys.filter(isSidebarViewScopeKey).flatMap((key) => {
-    const projects = resolveSidebarViewProjectKeys({ key, views: sidebarViews, groups: scopeGroups });
+    const projects = resolveSidebarViewProjectKeys({
+      key,
+      views: sidebarViews,
+      groups: scopeGroups,
+    });
     return projects === null ? [] : [{ key, projects }];
   });
   const chosenProjectScopeKeys = [
@@ -1114,11 +1122,18 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     }).filter((key) => !archivedProjectKeys.has(key)),
     ...selectedViews.map((view) => view.key),
   ];
-  const chosenProjectGroups = scopeGroups.filter((project) => chosenProjectScopeKeys.includes(project.projectKey));
-  const chosenScopeProjectKeys = chosenProjectGroups.length === 0 && selectedViews.length === 0 ? null : new Set([
-    ...chosenProjectGroups.flatMap((project) => project.memberProjectRefs.map((ref) => `${ref.environmentId}:${ref.projectId}`)),
-    ...selectedViews.flatMap((view) => [...view.projects]),
-  ]);
+  const chosenProjectGroups = scopeGroups.filter((project) =>
+    chosenProjectScopeKeys.includes(project.projectKey),
+  );
+  const chosenScopeProjectKeys =
+    chosenProjectGroups.length === 0 && selectedViews.length === 0
+      ? null
+      : new Set([
+          ...chosenProjectGroups.flatMap((project) =>
+            project.memberProjectRefs.map((ref) => `${ref.environmentId}:${ref.projectId}`),
+          ),
+          ...selectedViews.flatMap((view) => [...view.projects]),
+        ]);
   const threads = useQuietThreadShells();
   const routeRowThreadKey =
     routeThreadRef === null
@@ -1182,7 +1197,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   };
   // Pinning from a row keeps rows in place while the menu is open.
   const projectScopeItems = useOrderWhileOpen(
-    [...lookupProjectScopeItems.slice(0, 1), ...sidebarViewScopeItems(sidebarViews), ...lookupProjectScopeItems.slice(1)],
+    [
+      ...lookupProjectScopeItems.slice(0, 1),
+      ...sidebarViewScopeItems(sidebarViews),
+      ...lookupProjectScopeItems.slice(1),
+    ],
     (item) => item.value,
     projectScopeMenuState.open,
   );
@@ -3119,9 +3138,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                     <ComboboxList aria-multiselectable>
                       {(item: (typeof projectScopeItems)[number]) => {
                         const project = projectGroupByScopeKey.get(item.value) ?? null;
-                        const isSelected = item.value !== "all"
-                          ? projectScopeKeys.includes(item.value)
-                          : projectScopeKeys.length === 0;
+                        const isSelected =
+                          item.value !== "all"
+                            ? projectScopeKeys.includes(item.value)
+                            : projectScopeKeys.length === 0;
                         return (
                           <ComboboxItem
                             key={item.value}

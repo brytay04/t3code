@@ -5752,7 +5752,12 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       assert.equal(harness.getOpenedOptions()?.promptSuggestions, true);
     }).pipe(
       Effect.provide(
-        Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+        Layer.mergeAll(
+          IdAllocator.layer,
+          McpProviderSessions.layer,
+          NodeServices.layer,
+          NodeCrypto.layer,
+        ),
       ),
     ),
   );

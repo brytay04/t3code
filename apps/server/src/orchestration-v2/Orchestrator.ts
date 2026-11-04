@@ -1,4 +1,3 @@
-import { resolveProjectProviderInstanceEnabled } from "@t3tools/contracts";
 import type {
   GuestShareId,
   OrchestrationV2SearchThreadInput,
@@ -5501,7 +5500,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         latestRun.status !== "completed" ||
         projection.thread.archivedAt !== null ||
         projection.thread.deletedAt !== null ||
-        projection.runs.some((run) => isBlockingRun(run) || run.status === "queued") ||
+        projection.runs.some((run) => isActiveRun(run) || run.status === "queued") ||
         projection.runtimeRequests.some((request) => request.status === "pending")
       ) {
         return yield* new OrchestratorDispatchError({

@@ -468,7 +468,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   {
     id: "sidebar-views",
     title: "Sidebar views",
-    to: "/settings/appearance",
+    to: "/settings/general",
     searchTerms: ["work mode groups folders filter projects workspace switch show hide"],
   },
   {

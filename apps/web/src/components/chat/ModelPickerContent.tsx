@@ -1090,7 +1090,9 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
                         : modelKey === activeModelKey
                     }
                     favoriteStarOnHover={selectedInstanceId === "favorites" && !isSearching}
-                    showInstanceBadge={!props.autoRouteModels && badgedInstanceIds.has(model.instanceId)}
+                    showInstanceBadge={
+                      !props.autoRouteModels && badgedInstanceIds.has(model.instanceId)
+                    }
                     showNewBadge={model.badge === "new"}
                     unavailable={model.isUnavailable === true}
                     jumpLabel={modelJumpLabelByKey.get(modelKey) ?? null}

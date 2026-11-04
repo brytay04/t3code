@@ -160,7 +160,8 @@ export function startThreadNotifications(
         });
       };
       const toastKey = threadKey({ environmentId, threadId: thread.id });
-      for (const replaced of openToasts.get(toastKey) ?? []) threadNotificationToastManager.close(replaced);
+      for (const replaced of openToasts.get(toastKey) ?? [])
+        threadNotificationToastManager.close(replaced);
       const toastId: ToastId = threadNotificationToastManager.add({
         onRemove: (): void => forgetToast(toastKey, toastId),
         type: kind === "completion" ? "success" : status === "failed" ? "error" : "warning",
@@ -408,7 +409,10 @@ export function startThreadNotifications(
       threadId?: string;
     };
     if (!active.environmentId || !active.threadId) return;
-    const key = threadKey({ environmentId: active.environmentId as EnvironmentId, threadId: active.threadId as ThreadId });
+    const key = threadKey({
+      environmentId: active.environmentId as EnvironmentId,
+      threadId: active.threadId as ThreadId,
+    });
     for (const toastId of openToasts.get(key) ?? []) threadNotificationToastManager.close(toastId);
     openToasts.delete(key);
   };
