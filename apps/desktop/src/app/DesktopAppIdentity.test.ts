@@ -182,6 +182,10 @@ describe("DesktopAppIdentity", () => {
       environment: { appVersion: "0.0.43-nightly.20260929.2428" },
     },
     {
+      stage: "Nightly",
+      environment: { appVersion: "0.1.8-nightly.20261104.4179.bryce.1" },
+    },
+    {
       stage: "Dev",
       environment: { env: { VITE_DEV_SERVER_URL: "http://localhost:5173" } },
     },
