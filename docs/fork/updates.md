@@ -33,11 +33,20 @@ move bryce/main to the merge commit
 - Mirror (bryceflow): `~/.local/share/t3-fork-mirror/www`, laid out like a GitHub release:
   `nightly-linux.yml` and `nightly-mac.yml` at the root, files under `v<version>/`. It keeps the
   newest 3 versions. Units: `t3-fork-mirror.service` (static server on 127.0.0.1:8787) and
-  `t3-fork-sync.timer`. Tailscale Serve maps `:8443` to it. Install or reinstall with
-  `fork/bryceflow/install.sh`.
-- Servers (bryceflow, fw-server-01): `/etc/t3code/policy.json` sets
-  `limits.updates.feedUrl` to the mirror, so `t3 update` and the update button read the mirror
-  instead of GitHub:
+  `t3-fork-sync.timer`. Tailscale Serve publishes it on `:8443` and `:9443`. Install or
+  reinstall with `fork/bryceflow/install.sh`.
+- bryceflow itself cannot reach its own tailnet address from WSL, so inside WSL
+  `/etc/hosts` points `bryceflow.tail27e15f.ts.net` at 127.0.0.1 (with `generateHosts = false`
+  in `/etc/wsl.conf`), and `t3-fork-mirror-tls.service` answers `https://...:9443` locally with
+  the Tailscale certificate (renewed by the sync job). That is why bryceflow's policy uses
+  `:9443`; 8443 cannot be bound inside this WSL.
+- Servers: a managed policy sets `limits.updates.feedUrl` to the mirror, so `t3 update` and
+  the update button read the mirror instead of GitHub. bryceflow: `/etc/t3code/policy.json`
+  (feedUrl `:9443`). fw-server-01 has no passwordless sudo, so it uses
+  `~/.config/t3code/policy.json` (feedUrl `:8443`), named by `T3CODE_DEV_MANAGED_POLICY_PATH`
+  in a systemd drop-in (`~/.config/systemd/user/t3code.service.d/fork-policy.conf`) and in
+  `~/.profile`/`~/.bashrc`. Only non-official builds honor that variable, which fork builds are.
+  Moving it to `/etc/t3code/policy.json` later is fine. The file:
 
   ```json
   {

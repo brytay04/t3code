@@ -71,5 +71,24 @@ check_failed_run() {
   "$SCRIPT_DIR/t3-fork-fix.sh" "$id" || log "Fix agent exited with an error."
 }
 
+# Keeps the local HTTPS copy's Tailscale certificate fresh (renews when under 30 days).
+refresh_cert() {
+  local tls="$ROOT/tls" host="${T3_FORK_MIRROR_HOST:-bryceflow.tail27e15f.ts.net}"
+  local ts="/mnt/c/Program Files/Tailscale/tailscale.exe"
+  [[ -x "$ts" ]] || return 0
+  mkdir -p "$tls"
+  local before
+  before="$(sha256sum "$tls/mirror.crt" 2>/dev/null || true)"
+  "$ts" cert --min-validity 720h --cert-file - "$host" > "$tls/.crt.tmp" \
+    && "$ts" cert --min-validity 720h --key-file - "$host" > "$tls/.key.tmp" \
+    && [[ -s "$tls/.crt.tmp" && -s "$tls/.key.tmp" ]] \
+    && chmod 600 "$tls/.key.tmp" && mv "$tls/.crt.tmp" "$tls/mirror.crt" && mv "$tls/.key.tmp" "$tls/mirror.key"
+  rm -f "$tls/.crt.tmp" "$tls/.key.tmp"
+  if [[ "$before" != "$(sha256sum "$tls/mirror.crt" 2>/dev/null || true)" ]]; then
+    systemctl --user restart t3-fork-mirror-tls.service || true
+  fi
+}
+
+refresh_cert || log "Certificate refresh failed."
 sync_release || log "Release sync failed."
 check_failed_run || log "Failed-run check failed."

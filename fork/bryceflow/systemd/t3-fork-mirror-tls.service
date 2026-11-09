@@ -1,0 +1,10 @@
+[Unit]
+Description=T3 Code fork update mirror over HTTPS on 127.0.0.1:9443 (for bryceflow's own t3 update)
+
+[Service]
+ExecStart=/usr/bin/python3 -I %h/.local/share/t3-fork-mirror/bin/t3-fork-mirror-tls.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
