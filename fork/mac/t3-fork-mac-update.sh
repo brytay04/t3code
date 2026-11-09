@@ -3,7 +3,7 @@
 # (com.brytay04.t3-fork-update). The fork's builds are not signed by Apple, so the app's
 # built-in updater cannot install them; this does it instead:
 #   1. Reads nightly-mac.yml from bryceflow's update mirror.
-#   2. Downloads and checks the app zip and stages the app, while T3 keeps running.
+#   2. Downloads and checks the app zip, ad-hoc signs the app, and stages it while T3 runs.
 #   3. When T3 Code is not running, swaps the staged app into /Applications, keeping the
 #      previous app as the one backup.
 # Log: ~/Library/Logs/t3-fork-update.log
@@ -78,6 +78,11 @@ if [[ -n "$version" && -n "$zip" && -n "$sha512" && "$version" != "$installed_ve
         log "The zip for $version did not hold a $version app; discarding it."
       else
         /usr/bin/xattr -dr com.apple.quarantine "$new_app" 2>/dev/null || true
+        # CI builds are unsigned (only the linker signature), which fails bundle verification.
+        # An ad-hoc signature seals the bundle the way the previous local builds were.
+        if ! /usr/bin/codesign --verify --deep --strict "$new_app" 2>/dev/null; then
+          /usr/bin/codesign --force --deep --sign - "$new_app"
+        fi
         rm -rf "$STAGED"
         mkdir -p "$STAGED"
         mv "$new_app" "$STAGED/"
