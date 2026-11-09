@@ -17,6 +17,7 @@ import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.
 import * as ServerSettings from "../serverSettings.ts";
 import * as TextGeneration from "../textGeneration/TextGeneration.ts";
 import { CLAUDE_PROVIDER } from "./Adapters/ClaudeAdapterV2.ts";
+import { CODEX_DRIVER_KIND } from "./Adapters/CodexAdapterV2.ts";
 import * as EventSink from "./EventSink.ts";
 import * as ProjectStore from "./ProjectStore.ts";
 import * as PromptSuggestionHub from "./PromptSuggestionHub.ts";
@@ -80,8 +81,14 @@ export const layer = Layer.effectDiscard(
       const settings = yield* serverSettings.getSettings;
       if (settings.promptSuggestionMode === "off") return;
       if (settings.promptSuggestionMode === "native-first") {
+        // Claude and Codex write their own suggestions in this mode.
         const instance = yield* registry.getInstance(run.providerInstanceId);
-        if (instance?.driverKind === CLAUDE_PROVIDER) return;
+        if (
+          instance?.driverKind === CLAUDE_PROVIDER ||
+          instance?.driverKind === CODEX_DRIVER_KIND
+        ) {
+          return;
+        }
       }
       const records = yield* threads.getThreadRecords(run.threadId, ["messages"], {
         messageRunIds: [run.id],
@@ -102,12 +109,7 @@ export const layer = Layer.effectDiscard(
         assistantMessage,
         threadSelection: records.thread.modelSelection,
       });
-      yield* hub.set({
-        threadId: run.threadId,
-        ifEpoch: epoch,
-        providerTurnId: null,
-        suggestion,
-      });
+      yield* hub.set({ threadId: run.threadId, ifEpoch: epoch, runId: run.id, text: suggestion });
     });
 
     // Only runs that finish from now on; history has nobody waiting on it.

@@ -6,7 +6,7 @@ import { useState } from "react";
 import { newMessageId } from "~/lib/utils";
 import { threadEnvironment } from "../state/threads";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
-import { usePromptSuggestion } from "./chat/usePromptSuggestion";
+import { usePromptSuggestionText } from "./chat/usePromptSuggestion";
 import { Button } from "./ui/button";
 
 /**
@@ -23,7 +23,7 @@ export function ThreadNotificationSuggestion({
   thread: Pick<OrchestrationV2ThreadShell, "id" | "runtimeMode" | "interactionMode">;
   onSent: () => void;
 }) {
-  const suggestion = usePromptSuggestion(environmentId, thread.id);
+  const suggestion = usePromptSuggestionText(environmentId, thread.id);
   const startTurn = useOrchestrationCommand(threadEnvironment.startTurn, { reportFailure: false });
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);

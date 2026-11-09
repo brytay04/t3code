@@ -1,8 +1,4 @@
-import type {
-  OrchestrationV2PromptSuggestion,
-  OrchestrationV2SubscribePromptSuggestionInput,
-  ThreadId,
-} from "@t3tools/contracts";
+import type { OrchestrationV2PromptSuggestion, ThreadId } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -15,7 +11,7 @@ import * as Stream from "effect/Stream";
 /** Threads whose suggestion is remembered; the least recently set is dropped beyond this. */
 const MAX_THREADS = 256;
 
-const EMPTY: OrchestrationV2PromptSuggestion = { providerTurnId: null, suggestion: null };
+type Suggestion = NonNullable<OrchestrationV2PromptSuggestion>;
 
 export interface PromptSuggestionHubShape {
   /**
@@ -26,15 +22,15 @@ export interface PromptSuggestionHubShape {
     input: {
       readonly threadId: ThreadId;
       readonly ifEpoch?: number;
-    } & OrchestrationV2PromptSuggestion,
+    } & Suggestion,
   ) => Effect.Effect<void>;
   /** A new turn started: drop the suggestion and any still being generated. */
   readonly clear: (threadId: ThreadId) => Effect.Effect<void>;
   readonly epoch: (threadId: ThreadId) => Effect.Effect<number>;
   /** The current suggestion, then every change. */
-  readonly subscribe: (
-    input: OrchestrationV2SubscribePromptSuggestionInput,
-  ) => Stream.Stream<OrchestrationV2PromptSuggestion>;
+  readonly subscribe: (input: {
+    readonly threadId: ThreadId;
+  }) => Stream.Stream<OrchestrationV2PromptSuggestion>;
   /** Every suggestion set on any thread from now on; blank ones are skipped. */
   readonly changes: Stream.Stream<PromptSuggestionChange>;
 }
@@ -54,14 +50,14 @@ export class PromptSuggestionHub extends Context.Service<
 const make = Effect.gen(function* () {
   const changes = yield* PubSub.unbounded<PromptSuggestionChange>();
   // Insertion order doubles as recency: every write re-inserts its entry.
-  const latest = new Map<ThreadId, OrchestrationV2PromptSuggestion>();
+  const latest = new Map<ThreadId, Suggestion>();
   const epochs = new Map<ThreadId, number>();
   const subscribers = new Map<ThreadId, Set<Queue.Queue<OrchestrationV2PromptSuggestion>>>();
 
   const publish = (threadId: ThreadId, value: OrchestrationV2PromptSuggestion) =>
     Effect.suspend(() => {
       latest.delete(threadId);
-      if (value.suggestion !== null) {
+      if (value !== null) {
         latest.set(threadId, value);
         if (latest.size > MAX_THREADS) latest.delete(latest.keys().next().value!);
       }
@@ -73,9 +69,9 @@ const make = Effect.gen(function* () {
   const set: PromptSuggestionHubShape["set"] = ({ threadId, ifEpoch, ...value }) =>
     Effect.suspend(() => {
       if (ifEpoch !== undefined && ifEpoch !== (epochs.get(threadId) ?? 0)) return Effect.void;
-      const suggestion = value.suggestion?.trim() ?? "";
-      if (suggestion.length === 0) return publish(threadId, EMPTY);
-      return publish(threadId, { ...value, suggestion }).pipe(
+      const suggestion = value.text.trim();
+      if (suggestion.length === 0) return publish(threadId, null);
+      return publish(threadId, { runId: value.runId, text: suggestion }).pipe(
         Effect.andThen(
           PubSub.publish(changes, { threadId, suggestion, epoch: epochs.get(threadId) ?? 0 }),
         ),
@@ -88,7 +84,7 @@ const make = Effect.gen(function* () {
       epochs.delete(threadId);
       epochs.set(threadId, next);
       if (epochs.size > MAX_THREADS) epochs.delete(epochs.keys().next().value!);
-      return latest.has(threadId) ? publish(threadId, EMPTY) : Effect.void;
+      return latest.has(threadId) ? publish(threadId, null) : Effect.void;
     });
 
   const epoch: PromptSuggestionHubShape["epoch"] = (threadId) =>
@@ -110,7 +106,7 @@ const make = Effect.gen(function* () {
             }
           }),
         );
-        yield* Queue.offer(queue, latest.get(threadId) ?? EMPTY);
+        yield* Queue.offer(queue, latest.get(threadId) ?? null);
         return Stream.fromQueue(queue);
       }),
     );

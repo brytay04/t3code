@@ -286,6 +286,11 @@ export const makeManagedCodexProvider = Effect.fn("makeManagedCodexProvider")(fu
       protect("generateReviewGuide", nativeGeneration.generateReviewGuide(value)),
     generatePromptSuggestion: (value) =>
       protect("generatePromptSuggestion", nativeGeneration.generatePromptSuggestion(value)),
+    generateTranscriptionPostProcessing: (value) =>
+      protect(
+        "generateTranscriptionPostProcessing",
+        nativeGeneration.generateTranscriptionPostProcessing(value),
+      ),
   };
   return {
     instanceId,

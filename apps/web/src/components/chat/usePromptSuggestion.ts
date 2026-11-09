@@ -1,20 +1,78 @@
-import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
+import type { EnvironmentId, RunId, ThreadId } from "@t3tools/contracts";
+import { useSyncExternalStore } from "react";
 
+import type { Thread } from "../../types";
+import { useMediaQuery } from "../../hooks/useMediaQuery";
 import { useServerConfigs } from "../../state/entities";
 import { orchestrationEnvironment } from "../../state/orchestration";
 import { useEnvironmentQuery } from "../../state/query";
 
-/** The provider's suggested next prompt for a thread, or null when there is none. */
+// Dismissed suggestions, keyed by environment and run, shared by every mounted composer and kept
+// across remounts. Run ids derive from thread ids, which can repeat across environments.
+let dismissedKeys: ReadonlySet<string> = new Set();
+const listeners = new Set<() => void>();
+const subscribeDismissed = (listener: () => void) => {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+};
+const readDismissed = () => dismissedKeys;
+const dismissKey = (environmentId: EnvironmentId, runId: RunId) => `${environmentId}\u0000${runId}`;
+
+/**
+ * The provider's predicted next prompt, while the run that produced it is the thread's latest
+ * completed run and Escape has not dismissed it.
+ */
 export function usePromptSuggestion(
   environmentId: EnvironmentId,
-  threadId: ThreadId | null,
-): string | null {
-  const supported =
-    useServerConfigs().get(environmentId)?.environment.capabilities.promptSuggestions === true;
+  thread: Thread | undefined,
+): { readonly suggestion: string | null; readonly dismiss: () => void } {
+  const enabled = usePromptSuggestionsEnabled(environmentId);
+  // Tab is the only way to accept one, so skip devices with no mouse or trackpad at all.
+  const hasFinePointer = useMediaQuery("(any-pointer: fine)");
   const { data } = useEnvironmentQuery(
-    supported && threadId !== null
+    // A local draft has no run, and so no suggestion, until its first send.
+    enabled && hasFinePointer && thread?.latestRun
+      ? orchestrationEnvironment.v2.promptSuggestion({
+          environmentId,
+          input: { threadId: thread.id },
+        })
+      : null,
+  );
+  const dismissed = useSyncExternalStore(subscribeDismissed, readDismissed);
+  const latestRun = thread?.latestRun;
+  const offered =
+    data && latestRun?.runId === data.runId && latestRun.status === "completed" ? data : null;
+  return {
+    suggestion:
+      offered && !dismissed.has(dismissKey(environmentId, offered.runId)) ? offered.text : null,
+    dismiss: () => {
+      if (offered === null) return;
+      dismissedKeys = new Set(dismissedKeys).add(dismissKey(environmentId, offered.runId));
+      for (const listener of listeners) listener();
+    },
+  };
+}
+
+// Fork: the server's suggestion mode (default on) also turns suggestions on. Older servers lack
+// both settings, which also proves they lack the method.
+function usePromptSuggestionsEnabled(environmentId: EnvironmentId): boolean {
+  const settings = useServerConfigs().get(environmentId)?.settings;
+  if (settings === undefined) return false;
+  if (settings.promptSuggestionsEnabled === true) return true;
+  const mode: string | undefined = settings.promptSuggestionMode;
+  return mode !== undefined && mode !== "off";
+}
+
+/** Fork: a thread's latest suggestion text for its completion alert, or null. */
+export function usePromptSuggestionText(
+  environmentId: EnvironmentId,
+  threadId: ThreadId,
+): string | null {
+  const enabled = usePromptSuggestionsEnabled(environmentId);
+  const { data } = useEnvironmentQuery(
+    enabled
       ? orchestrationEnvironment.v2.promptSuggestion({ environmentId, input: { threadId } })
       : null,
   );
-  return data?.suggestion ?? null;
+  return data?.text ?? null;
 }

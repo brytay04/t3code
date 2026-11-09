@@ -619,10 +619,8 @@ export const layer: Layer.Layer<
             case "background_work.updated":
               return [];
             case "command_output.delta":
-              // Live output is routed to the command output hub before ingestion.
-              return [];
             case "prompt_suggestion.updated":
-              // Routed to the prompt suggestion hub before ingestion.
+              // The session manager serves these to clients before ingestion.
               return [];
             case "turn.terminal":
               const dismissed = yield* dismissNativeUserInputs(input, input.event.providerTurnId);
