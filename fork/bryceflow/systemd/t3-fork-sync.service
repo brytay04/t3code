@@ -1,0 +1,11 @@
+[Unit]
+Description=Copy the newest T3 Code fork release into the update mirror; start the fix agent after a failed nightly
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=%h/.local/share/t3-fork-mirror/bin/t3-fork-sync.sh
+# The fix agent can take a while.
+TimeoutStartSec=3h

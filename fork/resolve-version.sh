@@ -11,8 +11,8 @@ set -euo pipefail
 
 repo="${GITHUB_REPOSITORY:-brytay04/t3code}"
 
-base_tag="$(git for-each-ref --merged HEAD --sort=-version:refname --format='%(refname:lstrip=2)' \
-  'refs/upstream-tags/v*-nightly.*' | head -n 1)"
+base_tag="$(git for-each-ref --merged HEAD --sort=-version:refname --count=1 \
+  --format='%(refname:lstrip=2)' 'refs/upstream-tags/v*-nightly.*')"
 if [[ -z "$base_tag" ]]; then
   echo "HEAD contains no upstream Nightly tag." >&2
   exit 1

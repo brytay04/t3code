@@ -1,0 +1,10 @@
+[Unit]
+Description=Hourly T3 Code fork mirror sync
+
+[Timer]
+OnBootSec=5min
+OnCalendar=*-*-* *:50:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

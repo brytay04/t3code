@@ -1,4 +1,6 @@
 name: Fork nightly
+# The fix agent on bryceflow reads the source branch from the title.
+run-name: Fork nightly (${{ inputs.source_ref || 'bryce/main' }})
 
 # Bryce's fork: merge upstream into bryce/main, check the fork's own features, build the
 # Linux x64 and macOS arm64 CLI archives plus the macOS arm64 app, and publish a GitHub

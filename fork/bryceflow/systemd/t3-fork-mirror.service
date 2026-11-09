@@ -1,0 +1,9 @@
+[Unit]
+Description=T3 Code fork update mirror (static files on 127.0.0.1:8787, served on the tailnet by Tailscale Serve :8443)
+
+[Service]
+ExecStart=/usr/bin/python3 -m http.server 8787 --bind 127.0.0.1 --directory %h/.local/share/t3-fork-mirror/www
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
