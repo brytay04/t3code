@@ -53,6 +53,8 @@ jobs:
         with:
           ref: ${{ inputs.source_ref || 'bryce/main' }}
           fetch-depth: 0
+          # A deploy key, because the default token may not push upstream's workflow changes.
+          ssh-key: ${{ secrets.FORK_DEPLOY_KEY }}
           sparse-checkout: |
             /*
             !/.repos/
@@ -257,6 +259,7 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.sha }}
           fetch-depth: 0
+          ssh-key: ${{ secrets.FORK_DEPLOY_KEY }}
           sparse-checkout: fork
 
       - name: Download desktop artifacts
