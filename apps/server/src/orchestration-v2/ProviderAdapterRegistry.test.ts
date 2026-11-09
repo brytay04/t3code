@@ -230,6 +230,7 @@ it.effect("routes using registry quota snapshots and respects project exclusions
       const registry = yield* ProviderAdapterRegistry.ProviderAdapterRegistryV2;
       const selection = { instanceId: personalId, model: "gpt-6-astra", routing: "auto" as const };
       const routed = yield* registry.routeSelection!({
+        accountSwitching: "most-headroom",
         selection,
         runtimeMode: "full-access",
         disabledInstanceIds: [],
@@ -237,12 +238,14 @@ it.effect("routes using registry quota snapshots and respects project exclusions
       assert.equal(routed.instanceId, workId);
       assert.equal(routed.model, selection.model);
       const disabledSource = yield* registry.routeSelection!({
+        accountSwitching: "most-headroom",
         selection,
         runtimeMode: "full-access",
         disabledInstanceIds: [personalId],
       });
       assert.equal(disabledSource.instanceId, workId);
       const excluded = yield* registry.routeSelection!({
+        accountSwitching: "most-headroom",
         selection,
         runtimeMode: "full-access",
         disabledInstanceIds: [workId],

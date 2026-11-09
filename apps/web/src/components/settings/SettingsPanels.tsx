@@ -21,6 +21,7 @@ import {
   MIN_SIDEBAR_AUTO_SETTLE_AFTER_DAYS,
   type ResponseStreamingMode,
   type QuitConfirmationMode,
+  AccountSwitching,
   PromptSuggestionMode,
   PromptSuggestionDelaySeconds,
   PromptSuggestionMaxAutoSends,
@@ -130,6 +131,12 @@ const PROMPT_SUGGESTION_MODE_LABELS: Record<PromptSuggestionMode, string> = {
   generated: "Use selected model",
 };
 const isPromptSuggestionMode = Schema.is(PromptSuggestionMode);
+const ACCOUNT_SWITCHING_LABELS: Record<AccountSwitching, string> = {
+  off: "Off",
+  "when-full": "When an account is full",
+  "most-headroom": "Always most headroom",
+};
+const isAccountSwitching = Schema.is(AccountSwitching);
 const isPromptSuggestionDelaySeconds = Schema.is(PromptSuggestionDelaySeconds);
 const isPromptSuggestionMaxAutoSends = Schema.is(PromptSuggestionMaxAutoSends);
 const SIDEBAR_PROJECT_SORT_ORDER_LABELS: Record<SidebarProjectSortOrder, string> = {
@@ -1856,6 +1863,45 @@ export function ThreadsSettingsPanel() {
                 ) : null}
               </div>
             )
+          }
+        />
+        <SettingsRow
+          serverScoped
+          settingKeys={["accountSwitching"]}
+          {...searchableSetting("account-switching")}
+          description="Move a chat to another signed-in account with the same model. Off keeps every chat on the account you picked, and it stops when that account runs out. When full moves a chat only once its account is nearly out, so chats don't jump around."
+          resetAction={
+            settings.accountSwitching !== DEFAULT_UNIFIED_SETTINGS.accountSwitching ? (
+              <SettingResetButton
+                label="automatic account switching"
+                onClick={() =>
+                  updateSettings({ accountSwitching: DEFAULT_UNIFIED_SETTINGS.accountSwitching })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Select
+              value={settings.accountSwitching}
+              onValueChange={(value) => {
+                if (isAccountSwitching(value)) updateSettings({ accountSwitching: value });
+              }}
+            >
+              <SelectTrigger
+                size="sm"
+                className="w-full sm:w-52"
+                aria-label="Automatic account switching"
+              >
+                <SelectValue>{ACCOUNT_SWITCHING_LABELS[settings.accountSwitching]}</SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                {AccountSwitching.literals.map((mode) => (
+                  <SelectItem hideIndicator key={mode} value={mode}>
+                    {ACCOUNT_SWITCHING_LABELS[mode]}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
           }
         />
         <SettingsRow

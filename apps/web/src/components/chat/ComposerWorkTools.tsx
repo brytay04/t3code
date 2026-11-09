@@ -15,7 +15,7 @@ const workflows = [
   {
     id: "council",
     label: "Council",
-    detail: "Two independent approaches → evidence-based decision; read-only",
+    detail: "Claude and Codex answer → anonymous review if they disagree → one decision",
   },
 ] as const;
 
@@ -57,8 +57,8 @@ export function ComposerWorkTools(props: {
         </MenuTrigger>
         <MenuPopup align="start" {...floating}>
           <div className="max-w-72 px-2 py-1.5 text-xs text-muted-foreground">
-            Adds an editable workflow brief. Review it, add your task, then send. Delegates use the
-            lead's model unless you name others.
+            Adds an editable workflow brief. Review it, add your task, then send. Team uses the
+            lead's model; Council asks Claude and Codex. Delegates stay on this chat's account.
           </div>
           {workflows.map((workflow) => (
             <MenuItem key={workflow.id} onClick={() => props.onWorkflow(workflow.id)}>

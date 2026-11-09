@@ -701,6 +701,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["generated thread titles prompt custom style naming rename regenerate"],
   },
   {
+    id: "account-switching",
+    title: "Automatic account switching",
+    to: "/settings/threads",
+    searchTerms: ["auto switch routing capacity headroom claude personal work account usage"],
+  },
+  {
     id: "prompt-suggestions",
     title: "Prompt suggestions",
     to: "/settings/threads",

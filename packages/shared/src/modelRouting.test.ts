@@ -1,10 +1,11 @@
-import { expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 import {
   ProviderInstanceId,
   ProviderDriverKind,
   type ServerProvider,
   type ModelSelection,
 } from "@t3tools/contracts";
+import type { AccountSwitching } from "@t3tools/contracts/settings";
 import { createModelCapabilities } from "./model.ts";
 import { routeModelSelection } from "./modelRouting.ts";
 
@@ -35,7 +36,13 @@ function provider(id: string, used: number, extra: Partial<ServerProvider> = {})
   };
 }
 function route(providers: ServerProvider[], selected = selection) {
-  return routeModelSelection({ selection: selected, providers, now, runtimeMode: "full-access" });
+  return routeModelSelection({
+    selection: selected,
+    providers,
+    now,
+    runtimeMode: "full-access",
+    accountSwitching: "most-headroom",
+  });
 }
 it("routes the same model to the account with greatest remaining capacity", () => {
   expect(route([provider("primary", 100), provider("backup", 5)])).toEqual({
@@ -66,7 +73,7 @@ it.each([
   { usageLimits: undefined },
   {
     usageLimits: {
-      checkedAt: "2026-11-04T17:54:59.999Z",
+      checkedAt: "2026-11-04T17:44:59.999Z",
       windows: [{ id: "weekly", label: "Weekly", kind: "weekly" as const, usedPercent: 0 }],
     },
   },
@@ -160,6 +167,7 @@ it("routes generated prompts only to text generation providers, preserving optio
   });
   const models = [{ slug: selection.model, name: "Opus", isCustom: false, capabilities }];
   const routed = routeModelSelection({
+    accountSwitching: "most-headroom",
     selection: { ...selection, options },
     now,
     runtimeMode: "text-generation",
@@ -175,4 +183,84 @@ it("routes away from a disabled source when an eligible account has the same mod
   expect(
     route([provider("primary", 100, { enabled: false }), provider("backup", 5)]).instanceId,
   ).toBe("backup");
+});
+
+describe("automatic account switching setting", () => {
+  const routeWith = (accountSwitching: AccountSwitching, providers: ServerProvider[]) =>
+    routeModelSelection({
+      selection,
+      providers,
+      now,
+      runtimeMode: "full-access",
+      accountSwitching,
+    }).instanceId;
+
+  it("never leaves the chosen account when off, even if it is full", () => {
+    expect(routeWith("off", [provider("primary", 100), provider("backup", 0)])).toBe("primary");
+  });
+
+  it("stays on the current account until it is nearly full", () => {
+    expect(routeWith("when-full", [provider("primary", 90), provider("backup", 0)])).toBe(
+      "primary",
+    );
+    expect(routeWith("when-full", [provider("primary", 96), provider("backup", 0)])).toBe("backup");
+  });
+
+  it("always takes the most headroom when asked", () => {
+    expect(routeWith("most-headroom", [provider("primary", 20), provider("backup", 10)])).toBe(
+      "backup",
+    );
+  });
+});
+
+describe("usage data edge cases", () => {
+  const withWindows = (
+    instanceId: string,
+    windows: NonNullable<ServerProvider["usageLimits"]>["windows"],
+  ) =>
+    provider(instanceId, 0, {
+      usageLimits: { checkedAt: "2026-11-04T18:00:00.000Z", windows },
+    });
+
+  it("does not let a full Fable cap block an Opus chat", () => {
+    expect(
+      route([
+        provider("primary", 100),
+        withWindows("backup", [
+          { id: "seven_day", label: "Weekly", kind: "weekly", usedPercent: 10 },
+          { id: "seven_day_fable", label: "Fable", kind: "weekly", usedPercent: 100 },
+        ]),
+      ]).instanceId,
+    ).toBe("backup");
+  });
+
+  it("keeps using usage data across a slow refresh", () => {
+    const sixMinutesOld = "2026-11-04T17:54:00.000Z";
+    const aged = (instanceId: string, used: number) =>
+      provider(instanceId, 0, {
+        usageLimits: {
+          checkedAt: sixMinutesOld,
+          windows: [{ id: "seven_day", label: "Weekly", kind: "weekly", usedPercent: used }],
+        },
+      });
+    expect(route([aged("primary", 100), aged("backup", 10)]).instanceId).toBe("backup");
+  });
+
+  it("ignores a window that has already reset when another one still applies", () => {
+    expect(
+      route([
+        provider("primary", 100),
+        withWindows("backup", [
+          {
+            id: "five_hour",
+            label: "Session",
+            kind: "session",
+            usedPercent: 40,
+            resetsAt: "2026-11-04T17:59:00.000Z",
+          },
+          { id: "seven_day", label: "Weekly", kind: "weekly", usedPercent: 8 },
+        ]),
+      ]).instanceId,
+    ).toBe("backup");
+  });
 });

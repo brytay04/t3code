@@ -1,3 +1,4 @@
+import { resolveAccountRouting } from "./threadAccount";
 import { applyChatWorkflow, selectedChatWorkflow } from "@t3tools/shared/chatWorkflows";
 import { ComposerWorkTools } from "./ComposerWorkTools";
 import { useComposerTypingGuard } from "./useComposerTypingGuard";
@@ -800,6 +801,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           })
       : null);
   const setComposerDraftPrompt = useComposerDraftStore((store) => store.setPrompt);
+  const setComposerDraftAccountRouting = useComposerDraftStore((store) => store.setAccountRouting);
   const addComposerDraftImages = useComposerDraftStore((store) => store.addImages);
   const removeComposerDraftImage = useComposerDraftStore((store) => store.removeImage);
   const addComposerDraftFiles = useComposerDraftStore((store) => store.addFiles);
@@ -967,8 +969,16 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     provider: selectedProviderStatus,
     interactionMode: requestedInteractionMode,
   });
+  const accountRouting = resolveAccountRouting(
+    composerDraft.accountRouting,
+    activeThreadModelSelection?.routing,
+  );
+  const onAccountSelect = (choice: ProviderInstanceId | "auto") => {
+    setComposerDraftAccountRouting(composerDraftTarget, choice === "auto" ? "auto" : "pinned");
+    if (choice !== "auto") onProviderModelSelect(choice, selectedModel);
+  };
   const selectedModelSelection: ModelSelection = {
-    routing: "auto",
+    routing: accountRouting,
     ...createModelSelection(selectedInstanceId, selectedModel, selectedModelOptionsForDispatch),
   };
   const selectedModelForPicker = selectedModel;
@@ -2369,6 +2379,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       onProviderModelSelect={onProviderModelSelect}
       activeThreadModelSelection={activeThreadModelSelection}
       selectedModelForPickerWithCustomFallback={selectedModelForPickerWithCustomFallback}
+      accountRouting={accountRouting}
+      accountAutoAvailable={settings.accountSwitching !== "off"}
+      onAccountSelect={onAccountSelect}
       lockedProvider={lockedProvider}
       lockedContinuationGroupKey={lockedContinuationGroupKey}
       providerInstanceEntries={providerInstanceEntries}
@@ -3245,6 +3258,18 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           onToggleMenu={toggleStashMenuStable}
         />
       </ComposerBanner.Dock>
+      {visiblePromptSuggestion !== null && prompt.length === 0 ? (
+        <button
+          type="button"
+          data-chat-composer-suggestion="true"
+          className="mb-1.5 flex w-full min-w-0 items-center gap-2 rounded-lg border bg-background px-3 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground"
+          onPointerDown={(event) => event.preventDefault()}
+          onClick={() => applyPromptReplacement(0, 0, visiblePromptSuggestion)}
+        >
+          <span className="min-w-0 flex-1 truncate">{visiblePromptSuggestion}</span>
+          <span className="shrink-0 text-muted-foreground/70">⇥ Tab</span>
+        </button>
+      ) : null}
       <div className="relative">
         <ComposerSurface.Main
           ref={composerMainSurfaceRef}
@@ -3444,9 +3469,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                               ? "Choose a project above to start a thread"
                               : showProviderUnavailable
                                 ? "Enable a provider in Settings to send a message"
-                                : visiblePromptSuggestion !== null
-                                  ? `${visiblePromptSuggestion}  ⇥ Tab`
-                                  : DEFAULT_COMPOSER_PLACEHOLDER
+                                : DEFAULT_COMPOSER_PLACEHOLDER
                     }
                     disabled={
                       projectSelectionRequired ||

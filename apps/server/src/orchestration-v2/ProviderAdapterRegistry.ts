@@ -5,6 +5,7 @@ import {
   ProviderSetupError,
   type OrchestrationV2ProviderCapabilities,
 } from "@t3tools/contracts";
+import type { AccountSwitching } from "@t3tools/contracts/settings";
 import { routeModelSelection } from "@t3tools/shared/modelRouting";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import * as Option from "effect/Option";
@@ -49,6 +50,7 @@ export interface ProviderAdapterRegistryV2Shape {
     selection: ModelSelection;
     runtimeMode: RuntimeMode;
     disabledInstanceIds: ReadonlyArray<string>;
+    accountSwitching: AccountSwitching;
   }) => Effect.Effect<ModelSelection>;
   readonly get: (
     instanceId: ProviderInstanceId,

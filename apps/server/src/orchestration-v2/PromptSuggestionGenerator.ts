@@ -1,4 +1,9 @@
-import type { OrchestrationV2Run, ProjectId, ServerSettings as Settings } from "@t3tools/contracts";
+import type {
+  ModelSelection,
+  OrchestrationV2Run,
+  ProjectId,
+  ServerSettings as Settings,
+} from "@t3tools/contracts";
 import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import { routeModelSelection } from "@t3tools/shared/modelRouting";
 import * as DateTime from "effect/DateTime";
@@ -32,17 +37,21 @@ export const generateWithAvailableAccount = Effect.fn(
   cwd: string;
   userMessage: string;
   assistantMessage: string;
+  threadSelection?: ModelSelection;
 }) {
-  const { settings, projectId, ...prompt } = input;
+  const { settings, projectId, threadSelection, ...prompt } = input;
   const textGeneration = yield* TextGeneration.TextGeneration;
   const providers = yield* Effect.serviceOption(ProviderRegistry.ProviderRegistry);
   const projectSettings = resolveProjectSettings(settings, projectId).settings;
-  const selection =
+  const configured =
     settings.promptSuggestionModelSelection ?? projectSettings.textGenerationModelSelection;
+  // A chat fixed to one account spends only that account, even on suggestions.
+  const selection = threadSelection?.routing === "pinned" ? threadSelection : configured;
   const overrides = settings.projectSettingsOverrides[projectId]?.providerInstances ?? {};
   const modelSelection = routeModelSelection({
     selection: { ...selection, routing: selection.routing ?? "auto" },
     runtimeMode: "text-generation",
+    accountSwitching: settings.accountSwitching,
     now: DateTime.toEpochMillis(yield* DateTime.now),
     providers: (Option.isSome(providers) ? yield* providers.value.getProviders : []).map(
       (provider) => ({
@@ -91,6 +100,7 @@ export const layer = Layer.effectDiscard(
         cwd: records.thread.worktreePath ?? project.value.workspaceRoot,
         userMessage,
         assistantMessage,
+        threadSelection: records.thread.modelSelection,
       });
       yield* hub.set({
         threadId: run.threadId,

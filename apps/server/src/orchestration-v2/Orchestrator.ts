@@ -1115,6 +1115,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     return yield* providerAdapters.routeSelection({
       selection,
       runtimeMode: thread.runtimeMode,
+      accountSwitching: settings.accountSwitching,
       disabledInstanceIds: Object.entries(overrides)
         .filter(([, value]) => value.enabled === false)
         .map(([id]) => id),

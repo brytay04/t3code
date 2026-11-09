@@ -4,6 +4,7 @@ import type { ProviderInstanceEntry } from "../../providerInstances";
 import { type AppModelOption } from "../../modelSelection";
 import { CircleAlertIcon } from "lucide-react";
 import { CompactComposerControlsMenu } from "./CompactComposerControlsMenu";
+import { ComposerAccountPicker } from "./ComposerAccountPicker";
 import { ComposerControl } from "./ComposerControl";
 import {
   ComposerFooterModeControls,
@@ -28,6 +29,7 @@ import {
   describeComposerEffort,
 } from "./ComposerModelEffort";
 import type { useComposerProviderModel } from "./useComposerProviderModel";
+import type { AccountRouting } from "./threadAccount";
 import { resolveComposerControlsOwnership } from "./composerControlsOwnership";
 
 /**
@@ -78,6 +80,9 @@ export function ComposerControlsBar(props: {
   onProviderModelSelect: ChatComposerProps["onProviderModelSelect"];
   activeThreadModelSelection: ChatComposerProps["activeThreadModelSelection"];
   selectedModelForPickerWithCustomFallback: string;
+  accountRouting: AccountRouting;
+  accountAutoAvailable: boolean;
+  onAccountSelect: (choice: ProviderInstanceId | "auto") => void;
   lockedProvider: ChatComposerProps["lockedProvider"];
   lockedContinuationGroupKey: string | null;
   providerInstanceEntries: ReadonlyArray<ProviderInstanceEntry>;
@@ -126,6 +131,9 @@ export function ComposerControlsBar(props: {
     onProviderModelSelect,
     activeThreadModelSelection,
     selectedModelForPickerWithCustomFallback,
+    accountRouting,
+    accountAutoAvailable,
+    onAccountSelect,
     lockedProvider,
     lockedContinuationGroupKey,
     providerInstanceEntries,
@@ -269,6 +277,16 @@ export function ComposerControlsBar(props: {
   ) : (
     <>
       {composerModelPicker}
+      <ComposerAccountPicker
+        entries={multipleModelSelections === null ? providerInstanceEntries : []}
+        activeInstanceId={selectedModelSelection.instanceId}
+        model={selectedModelSelection.model}
+        routing={accountRouting}
+        autoAvailable={accountAutoAvailable}
+        disabled={providerCatalogPending || isSendBusy}
+        size={controlSize}
+        onSelect={onAccountSelect}
+      />
 
       <>
         {restingBlockDefs.map((def, index) => {

@@ -723,6 +723,29 @@ describe("composerDraftStore context persistence", () => {
   });
 });
 
+describe("composerDraftStore account routing", () => {
+  const threadRef = scopeThreadRef(TEST_ENVIRONMENT_ID, ThreadId.make("account-routing"));
+
+  beforeEach(resetComposerDraftStore);
+
+  it("keeps a chat's account choice through model changes and reloads", () => {
+    const store = useComposerDraftStore.getState();
+    store.setAccountRouting(threadRef, "pinned");
+    store.setModelSelection(threadRef, {
+      instanceId: ProviderInstanceId.make("claudeAgent_claude_work"),
+      model: "claude-opus-5-5",
+    });
+    const merge = useComposerDraftStore.persist.getOptions().merge!;
+    const state = merge(
+      JSON.parse(
+        JSON.stringify(partializeComposerDraftStoreState(useComposerDraftStore.getState())),
+      ),
+      useComposerDraftStore.getInitialState(),
+    );
+    expect(state.draftsByThreadKey[scopedThreadKey(threadRef)]?.accountRouting).toBe("pinned");
+  });
+});
+
 describe("composerDraftStore thread contexts", () => {
   const threadId = ThreadId.make("thread-with-context");
   const threadRef = scopeThreadRef(TEST_ENVIRONMENT_ID, threadId);

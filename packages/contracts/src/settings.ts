@@ -1199,6 +1199,13 @@ export type StorageCleanupSettings = typeof StorageCleanupSettings.Type;
  * always asks the prompt suggestion model.
  */
 export const PromptSuggestionMode = Schema.Literals(["off", "native-first", "generated"]);
+/**
+ * How a model selection moves between accounts. `off` keeps every message on its
+ * chat's account; `when-full` moves only when that account is nearly out;
+ * `most-headroom` picks the emptiest account on each message.
+ */
+export const AccountSwitching = Schema.Literals(["off", "when-full", "most-headroom"]);
+export type AccountSwitching = typeof AccountSwitching.Type;
 export const PromptSuggestionDelaySeconds = Schema.Literals([5, 10, 30, 60, 300]);
 export const PromptSuggestionMaxAutoSends = Schema.Literals([1, 3, 5, 10]);
 export type PromptSuggestionMode = typeof PromptSuggestionMode.Type;
@@ -1368,6 +1375,7 @@ export const ServerSettings = Schema.Struct({
   ),
   reviewGuideInstructions: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
 
+  accountSwitching: AccountSwitching.pipe(Schema.withDecodingDefault(Effect.succeed("when-full"))),
   promptSuggestionMode: PromptSuggestionMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("native-first")),
   ),
@@ -1695,6 +1703,7 @@ export const ServerSettingsPatch = Schema.Struct({
   hideTaggedThreads: Schema.optionalKey(Schema.Boolean),
   guestSharingEnabled: Schema.optionalKey(Schema.Boolean),
   linkedEnvironmentsEnabled: Schema.optionalKey(Schema.Boolean),
+  accountSwitching: Schema.optionalKey(AccountSwitching),
   promptSuggestionMode: Schema.optionalKey(PromptSuggestionMode),
   promptSuggestionModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   promptSuggestionAutoSend: Schema.optionalKey(Schema.Boolean),

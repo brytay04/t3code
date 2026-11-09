@@ -13,7 +13,7 @@ import * as ProviderRegistryMock from "../provider/testUtils/providerRegistryMoc
 import * as TextGeneration from "../textGeneration/TextGeneration.ts";
 import { generateWithAvailableAccount } from "./PromptSuggestionGenerator.ts";
 
-it.effect.each(["route", "project-disabled", "pinned", "inherited"] as const)(
+it.effect.each(["route", "project-disabled", "pinned", "inherited", "pinned-thread"] as const)(
   "uses the chosen suggestion model and effort with %s selection",
   (scenario) =>
     Effect.gen(function* () {
@@ -78,6 +78,9 @@ it.effect.each(["route", "project-disabled", "pinned", "inherited"] as const)(
         cwd: "/project",
         userMessage: "Build it",
         assistantMessage: "Built it",
+        ...(scenario === "pinned-thread"
+          ? { threadSelection: { ...selection, instanceId: primary, routing: "pinned" as const } }
+          : {}),
       }).pipe(
         Effect.provide(
           Layer.merge(

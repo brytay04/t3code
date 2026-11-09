@@ -17,9 +17,10 @@ to keep a large paste editable in the composer instead.
 On web and desktop, the composer workflow menu adds an editable **Team** or
 **Council** brief to your draft. Add your task and send it to begin. Team asks the
 lead to gather independent analysis and test design, implement the result, then
-request an independent review. Council compares two independent proposals and
-returns a read-only recommendation. Delegates inherit the lead's model unless
-you name other models in the brief. These are agent-executed instructions using
+request an independent review. Council asks Claude and Codex the same question, has
+them review each other's answers anonymously only when they disagree, and returns
+a read-only recommendation. Team delegates inherit the lead's model unless you
+name other models in the brief. These are agent-executed instructions using
 T3's existing delegation tools, not a separate deterministic workflow engine.
 The agent must report unavailable tools or models instead of substituting.
 Choosing Focus removes an unchanged generated brief; edited instructions remain
@@ -423,6 +424,23 @@ including filenames or folders containing `#` or `?`.
 
 On mobile, select a PDF attachment or link to open it. iOS uses the native viewer;
 Android opens a compatible installed file viewer.
+
+### Choose an account for a chat
+
+When more than one signed-in account offers the selected model, an account menu appears next to the model picker. It applies to this chat and shows how much of each account is left.
+
+- **Auto**: the chat follows **Automatic account switching** in Settings.
+- **An account**: the chat stays on that account, and so do its delegates and suggestions. If the account runs out, the chat waits instead of moving.
+
+A change applies to your next message. Moving a chat to another account carries over a selection of its history, not the previous session.
+
+### Automatic account switching
+
+In **Settings → Threads**, **Automatic account switching** controls chats set to **Auto**.
+
+- **When an account is full** (default): a chat stays on its account until that account has about 5% left.
+- **Always most headroom**: each message goes to the account with the most room.
+- **Off**: chats never move, and the account menu offers only accounts.
 
 ### Prompt suggestions and automatic follow-ups
 

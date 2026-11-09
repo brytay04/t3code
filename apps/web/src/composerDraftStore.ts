@@ -251,6 +251,7 @@ const PersistedComposerThreadDraftState = Schema.Struct({
   modelSelectionByProvider: Schema.optionalKey(Schema.Record(ProviderInstanceId, ModelSelection)),
   activeProvider: Schema.optionalKey(Schema.NullOr(ProviderInstanceId)),
   modelSelectionExplicit: Schema.optionalKey(Schema.Boolean),
+  accountRouting: Schema.optionalKey(Schema.Literals(["auto", "pinned"])),
   runtimeMode: Schema.optionalKey(RuntimeMode),
   interactionMode: Schema.optionalKey(ProviderInteractionMode),
 });
@@ -375,6 +376,8 @@ export interface ComposerThreadDraftState {
   modelSelectionByProvider: Partial<Record<ProviderInstanceId, ModelSelection>>;
   activeProvider: ProviderInstanceId | null;
   modelSelectionExplicit?: boolean;
+  /** The chat's account choice, until a message saves it on the thread. */
+  accountRouting?: NonNullable<ModelSelection["routing"]>;
   runtimeMode: RuntimeMode | null;
   interactionMode: ProviderInteractionMode | null;
 }
@@ -520,6 +523,10 @@ interface ComposerDraftStoreState {
     },
   ) => void;
   applyStickyState: (threadRef: ComposerThreadTarget) => void;
+  setAccountRouting: (
+    threadRef: ComposerThreadTarget,
+    routing: NonNullable<ModelSelection["routing"]>,
+  ) => void;
   setProviderModelOptions: (
     threadRef: ComposerThreadTarget,
     provider: ProviderDriverKind,
@@ -881,6 +888,7 @@ function shouldRemoveDraft(draft: ComposerThreadDraftState): boolean {
     draft.environmentContexts.length === 0 &&
     Object.keys(draft.modelSelectionByProvider).length === 0 &&
     draft.activeProvider === null &&
+    draft.accountRouting === undefined &&
     draft.runtimeMode === null &&
     draft.interactionMode === null
   );
@@ -2015,6 +2023,7 @@ function normalizePersistedDraftsByThreadId(
             ...(modelSelectionExplicit ? { modelSelectionExplicit: true } : {}),
           }
         : {}),
+      ...(draftCandidate.accountRouting ? { accountRouting: draftCandidate.accountRouting } : {}),
       ...(runtimeMode ? { runtimeMode } : {}),
       ...(interactionMode ? { interactionMode } : {}),
     };
@@ -2045,6 +2054,7 @@ function stripLegacyModelSeedsFromEmptyDraftSessions(
       if (
         draftThreadsByThreadKey[threadKey] === undefined ||
         draft.modelSelectionExplicit === true ||
+        draft.accountRouting !== undefined ||
         persistedComposerDraftHasUserContent(draft)
       ) {
         return [[threadKey, draft]];
@@ -2179,6 +2189,7 @@ export function partializeComposerDraftStoreState(
             ...(draft.modelSelectionExplicit ? { modelSelectionExplicit: true } : {}),
           }
         : {}),
+      ...(draft.accountRouting ? { accountRouting: draft.accountRouting } : {}),
       ...(draft.runtimeMode ? { runtimeMode: draft.runtimeMode } : {}),
       ...(draft.interactionMode ? { interactionMode: draft.interactionMode } : {}),
     };
@@ -2448,6 +2459,7 @@ function toHydratedThreadDraft(
     modelSelectionByProvider,
     activeProvider,
     ...(persistedDraft.modelSelectionExplicit ? { modelSelectionExplicit: true } : {}),
+    ...(persistedDraft.accountRouting ? { accountRouting: persistedDraft.accountRouting } : {}),
     runtimeMode: persistedDraft.runtimeMode ?? null,
     interactionMode: persistedDraft.interactionMode ?? null,
   };
@@ -3058,6 +3070,24 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
               nextDraftsByThreadKey[threadKey] = nextDraft;
             }
             return { draftsByThreadKey: nextDraftsByThreadKey };
+          });
+        },
+        setAccountRouting: (threadRef, routing) => {
+          const threadKey = resolveComposerDraftKey(get(), threadRef) ?? "";
+          if (threadKey.length === 0) {
+            return;
+          }
+          set((state) => {
+            const base = state.draftsByThreadKey[threadKey] ?? createEmptyThreadDraft();
+            if (base.accountRouting === routing) {
+              return state;
+            }
+            return {
+              draftsByThreadKey: {
+                ...state.draftsByThreadKey,
+                [threadKey]: { ...base, accountRouting: routing },
+              },
+            };
           });
         },
         setProviderModelOptions: (threadRef, provider, nextProviderOptions, options) => {

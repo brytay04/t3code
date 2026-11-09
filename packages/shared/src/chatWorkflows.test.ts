@@ -1,6 +1,16 @@
 import { expect, it } from "vite-plus/test";
 import { applyChatWorkflow, CHAT_WORKFLOW_BRIEFS, selectedChatWorkflow } from "./chatWorkflows.ts";
 
+it("keeps children on this chat's account and able to run checks", () => {
+  for (const brief of Object.values(CHAT_WORKFLOW_BRIEFS)) {
+    expect(brief).toContain("Stay on this chat's account");
+    expect(brief).toContain("Leave runtimeMode unset");
+    expect(brief).not.toContain("approval-required");
+  }
+  expect(CHAT_WORKFLOW_BRIEFS.council).toContain("driverKind claudeAgent and codex");
+  expect(CHAT_WORKFLOW_BRIEFS.council).toContain("reasoningEffort for Codex");
+});
+
 it("switches workflow briefs without dropping task text or accumulating delegates", () => {
   const task = "Fix [the selection](t3-context://selection/123).\nKeep my exact task.";
   const team = applyChatWorkflow(task, "team");
